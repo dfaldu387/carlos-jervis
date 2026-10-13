@@ -1,10 +1,13 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/use-auth';
+import { useT } from '@/lib/i18n';
 import { AppShell } from '@/components/layout/app-shell';
 import { LoginPage } from '@/pages/login';
 import { OverviewPage } from '@/pages/overview';
 import { AskPage } from '@/pages/ask';
-import { CommandPage } from '@/pages/command';
+import { TodayPage } from '@/pages/today';
+import { InboxPage } from '@/pages/inbox';
+import { DashboardsPage, DashboardViewPage } from '@/pages/dashboards';
 import { IssuesPage } from '@/pages/issues';
 import { AnalyticsPage } from '@/pages/analytics';
 import { ReportsPage } from '@/pages/reports';
@@ -16,14 +19,21 @@ import { SettingsPage } from '@/pages/settings';
 import { HelpPage } from '@/pages/help';
 import { ProfilePage } from '@/pages/profile';
 
+/** Old deep links (/ask?q=…, /command) land on the home chat with their query intact. */
+function RedirectHome() {
+  const location = useLocation();
+  return <Navigate to={`/${location.search}`} replace />;
+}
+
 export default function App() {
   const { status } = useAuth();
+  const t = useT();
 
   if (status === 'loading') {
     return (
       <div className="flex h-full items-center justify-center gap-2 text-muted-foreground">
         <span className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
-        Starting Jervis…
+        {t('app.starting')}
       </div>
     );
   }
@@ -35,9 +45,15 @@ export default function App() {
   return (
     <Routes>
       <Route element={<AppShell />}>
-        <Route path="/" element={<OverviewPage />} />
-        <Route path="/ask" element={<AskPage />} />
-        <Route path="/command" element={<CommandPage />} />
+        {/* The assistant is the home screen: a chat centred on Jervis. */}
+        <Route path="/" element={<AskPage />} />
+        <Route path="/ask" element={<RedirectHome />} />
+        <Route path="/command" element={<RedirectHome />} />
+        <Route path="/today" element={<TodayPage />} />
+        <Route path="/inbox" element={<InboxPage />} />
+        <Route path="/dashboards" element={<DashboardsPage />} />
+        <Route path="/dashboards/:id" element={<DashboardViewPage />} />
+        <Route path="/overview" element={<OverviewPage />} />
         <Route path="/issues" element={<IssuesPage />} />
         <Route path="/analytics" element={<AnalyticsPage />} />
         <Route path="/reports" element={<ReportsPage />} />

@@ -5,6 +5,24 @@ const bool = (value, fallback = false) => {
   return ['1', 'true', 'yes', 'on'].includes(String(value).toLowerCase());
 };
 
+/** Comma-separated env value -> trimmed, lower-cased, non-empty entries. */
+const list = (value) =>
+  String(value ?? '')
+    .split(',')
+    .map((entry) => entry.trim().toLowerCase())
+    .filter(Boolean);
+
+/** JSON object from an env value; anything else (unset, invalid, array) -> {}. */
+const jsonObject = (value) => {
+  if (!value) return {};
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+};
+
 export const config = {
   env: process.env.NODE_ENV ?? 'development',
   port: Number(process.env.PORT ?? 4010),
@@ -78,6 +96,25 @@ export const config = {
     loginWindowMinutes: Number(process.env.JERVIS_LOGIN_WINDOW_MINUTES ?? 5),
   },
 
+  // Single sign-on (OpenID Connect, Microsoft Entra ID). Off unless the
+  // provider is 'entra' and tenant, client id and client secret are all set;
+  // the demo password accounts keep working either way. The role map ties
+  // Entra group ids or app-role values to Jervis roles; anything unmapped gets
+  // the default role. See docs/ACCESS-MODEL.md, "SSO (Entra ID)".
+  sso: {
+    provider: process.env.JERVIS_SSO_PROVIDER ?? '',
+    tenantId: process.env.JERVIS_SSO_TENANT_ID ?? '',
+    clientId: process.env.JERVIS_SSO_CLIENT_ID ?? '',
+    clientSecret: process.env.JERVIS_SSO_CLIENT_SECRET ?? '',
+    // The browser reaches the API through the UI's proxy (Vite dev server on
+    // 5180, nginx on 80), so the redirect URI is the UI origin + the callback
+    // path, and it must be registered on the Entra app exactly like this.
+    redirectUri: process.env.JERVIS_SSO_REDIRECT_URI ?? 'http://127.0.0.1:5180/api/auth/sso/callback',
+    roleMap: jsonObject(process.env.JERVIS_SSO_ROLE_MAP),
+    defaultRole: process.env.JERVIS_SSO_DEFAULT_ROLE ?? 'viewer',
+    allowedDomains: list(process.env.JERVIS_SSO_ALLOWED_DOMAINS),
+  },
+
   // "Today" is pinned so the synthetic data set and the demo questions line up.
   // Unset it to follow the real clock.
   referenceDate: process.env.JERVIS_REFERENCE_DATE ?? '',
@@ -88,3 +125,7 @@ export const llmEnabled = () =>
 
 export const elevenLabsEnabled = () =>
   Boolean(config.elevenlabs.apiKey && config.elevenlabs.voiceId);
+
+export const ssoEnabled = () =>
+  config.sso.provider === 'entra' &&
+  Boolean(config.sso.tenantId && config.sso.clientId && config.sso.clientSecret);

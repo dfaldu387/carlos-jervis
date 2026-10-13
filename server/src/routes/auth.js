@@ -12,6 +12,7 @@ import {
 import { requireAuth } from '../middleware/access.js';
 import { createSession, destroySession, cookieOptions } from '../auth/sessions.js';
 import { parseCookies } from '../auth/cookies.js';
+import { createSsoHandlers } from '../auth/sso.js';
 import { recordAudit } from '../security/audit.js';
 import { logger } from '../utils/logger.js';
 
@@ -56,6 +57,16 @@ const clearFailures = (key) => attempts.delete(key);
 authRouter.get('/demo-accounts', (_req, res) => {
   res.json({ accounts: demoAccounts(), demo: true });
 });
+
+/**
+ * Single sign-on (Entra ID). Off unless config.sso is complete; the status
+ * endpoint is public so the sign-in screen knows whether to show the button.
+ * Flow and tests: src/auth/sso.js, test/sso.test.js.
+ */
+const sso = createSsoHandlers();
+authRouter.get('/sso', sso.status);
+authRouter.get('/sso/login', sso.login);
+authRouter.get('/sso/callback', sso.callback);
 
 /** POST /api/auth/login { email, password } */
 authRouter.post('/login', (req, res) => {
@@ -136,6 +147,7 @@ authRouter.get('/me', (req, res) => {
         jobTitle: req.access.roleName,
         role: req.access.role,
         roleName: req.access.roleName,
+        authSource: 'local',
       }),
       permissions: req.access.permissions,
       via: req.access.via,
@@ -170,6 +182,11 @@ authRouter.post('/change-password', requireAuth, (req, res) => {
   const user = findUserById(req.access.userId);
   if (!user) {
     res.status(404).json({ error: 'not_found', message: 'User not found.' });
+    return;
+  }
+  if (!user.passwordHash) {
+    // SSO users have no local password; it is managed by the identity provider.
+    res.status(400).json({ error: 'request_error', message: 'Your password is managed by your organisation sign-in.' });
     return;
   }
   if (!verifyPassword(currentPassword, user.passwordHash)) {

@@ -142,6 +142,74 @@ const probes = {
     return mqttConnect(values);
   },
 
+  async microsoft365(values) {
+    const tokenResponse = await fetchWithTimeout(
+      `https://login.microsoftonline.com/${encodeURIComponent(values.tenantId)}/oauth2/v2.0/token`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'client_credentials',
+          client_id: values.clientId,
+          client_secret: values.clientSecret,
+          scope: 'https://graph.microsoft.com/.default',
+        }),
+      },
+    );
+    const token = await tokenResponse.json().catch(() => ({}));
+    if (!tokenResponse.ok) {
+      return {
+        ok: false,
+        status: tokenResponse.status,
+        detail: token.error_description?.split('\n')[0] ?? 'Token request failed.',
+      };
+    }
+
+    const folders = await fetchWithTimeout(
+      `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(values.mailbox)}/mailFolders`,
+      { headers: { authorization: `Bearer ${token.access_token}` } },
+    );
+    if (folders.status === 401 || folders.status === 403) {
+      return { ok: false, status: folders.status, detail: 'Graph rejected the token for this mailbox.' };
+    }
+    if (!folders.ok) {
+      return { ok: false, status: folders.status, detail: `Mailbox read returned ${folders.status}.` };
+    }
+    const list = await folders.json().catch(() => ({ value: [] }));
+    return {
+      ok: true,
+      status: folders.status,
+      detail: `Authenticated; ${list.value?.length ?? 0} mail folders visible.`,
+    };
+  },
+
+  /**
+   * Posts a ping to the default flow trigger. A flow built for Jervis answers
+   * `{ "ping": true }` with 200 and does nothing else; a 202 means the flow
+   * accepted the run asynchronously, which also proves the URL is live.
+   */
+  async power_automate(values) {
+    const response = await fetchWithTimeout(values.triggerUrl, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify({ ping: true, source: 'jervis', at: new Date().toISOString() }),
+    });
+    if (response.status === 401 || response.status === 403) {
+      return { ok: false, status: response.status, detail: 'Trigger URL rejected the request; check the signature in the URL.' };
+    }
+    if (response.status === 404) {
+      return { ok: false, status: response.status, detail: 'No flow answers at the trigger URL (404).' };
+    }
+    if (!response.ok) {
+      return { ok: false, status: response.status, detail: `Trigger returned ${response.status}.` };
+    }
+    return {
+      ok: true,
+      status: response.status,
+      detail: response.status === 202 ? 'Flow accepted the ping (202).' : 'Flow answered the ping.',
+    };
+  },
+
   async legacy_chatbot(values) {
     if (!values.url) return { ok: false, detail: 'No application URL configured.' };
     const response = await fetchWithTimeout(values.url, { method: 'GET' });

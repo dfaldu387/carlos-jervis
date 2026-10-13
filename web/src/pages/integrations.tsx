@@ -11,14 +11,16 @@ import { Label } from '@/components/ui/label';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Banner, EmptyState, ErrorState, LoadingRows } from '@/components/states';
 import type { ConnectorMode, Integration } from '@/lib/types';
+import { useT } from '@/lib/i18n';
 
 const modeBadge: Record<ConnectorMode, { variant: BadgeProps['variant']; label: string }> = {
-  live: { variant: 'success', label: 'Live' },
-  mock: { variant: 'warning', label: 'Demo' },
-  planned: { variant: 'muted', label: 'Planned' },
+  live: { variant: 'success', label: 'mode.short.live' },
+  mock: { variant: 'warning', label: 'mode.short.mock' },
+  planned: { variant: 'muted', label: 'mode.short.planned' },
 };
 
 function IntegrationCard({ integration, onChanged }: { integration: Integration; onChanged: () => void }) {
+  const t = useT();
   const [values, setValues] = useState<Record<string, string>>(() => {
     const seed: Record<string, string> = {};
     integration.fields.forEach((f) => (seed[f.key] = f.secret ? '' : (f.value ?? '')));
@@ -46,7 +48,7 @@ function IntegrationCard({ integration, onChanged }: { integration: Integration;
       setTest(null);
       onChanged();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Could not save.');
+      setError(e instanceof ApiError ? e.message : t('integrations.saveFailed'));
     } finally {
       setBusy(null);
     }
@@ -61,7 +63,7 @@ function IntegrationCard({ integration, onChanged }: { integration: Integration;
       setTest(result);
       if (result.mode === 'live') onChanged();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Test failed.');
+      setError(e instanceof ApiError ? e.message : t('integrations.testFailed'));
     } finally {
       setBusy(null);
     }
@@ -71,12 +73,12 @@ function IntegrationCard({ integration, onChanged }: { integration: Integration;
     <Card className="p-5">
       <div className="mb-2 flex items-start justify-between gap-3">
         <div className="text-base font-semibold text-foreground">{integration.name}</div>
-        <Badge variant={m.variant}>{m.label}</Badge>
+        <Badge variant={m.variant}>{t(m.label)}</Badge>
       </div>
       <p className="mb-4 text-sm text-muted-foreground">{integration.summary}</p>
 
       {planned ? (
-        <Banner title="Not wired yet">{integration.liveBehaviour}</Banner>
+        <Banner title={t('integrations.notWired')}>{integration.liveBehaviour}</Banner>
       ) : (
         <>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -87,9 +89,23 @@ function IntegrationCard({ integration, onChanged }: { integration: Integration;
                   {f.required ? <span className="text-destructive"> *</span> : null}
                 </Label>
                 {f.multiline ? (
-                  <Textarea id={`${integration.id}-${f.key}`} className="mt-1 font-mono text-xs" rows={3} value={values[f.key] ?? ''} placeholder={f.placeholder ?? ''} onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))} />
+                  <Textarea
+                    id={`${integration.id}-${f.key}`}
+                    className="mt-1 font-mono text-xs"
+                    rows={3}
+                    value={values[f.key] ?? ''}
+                    placeholder={f.placeholder ?? ''}
+                    onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
+                  />
                 ) : (
-                  <Input id={`${integration.id}-${f.key}`} className="mt-1" type={f.secret ? 'password' : 'text'} value={values[f.key] ?? ''} placeholder={f.secret ? (f.set ? `Saved ${f.hint} — leave blank to keep` : 'Not set') : (f.placeholder ?? '')} onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))} />
+                  <Input
+                    id={`${integration.id}-${f.key}`}
+                    className="mt-1"
+                    type={f.secret ? 'password' : 'text'}
+                    value={values[f.key] ?? ''}
+                    placeholder={f.secret ? (f.set ? t('integrations.savedHint', { hint: f.hint ?? '' }) : t('integrations.notSet')) : (f.placeholder ?? '')}
+                    onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
+                  />
                 )}
                 {f.help ? <p className="mt-1 text-[11px] text-muted-foreground">{f.help}</p> : null}
               </div>
@@ -105,18 +121,37 @@ function IntegrationCard({ integration, onChanged }: { integration: Integration;
           {error ? <p className="mt-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p> : null}
 
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
-            <label className="flex items-center gap-2 text-sm font-medium text-foreground" title={missing.length ? 'Set the required fields first' : undefined}>
-              <input type="checkbox" className="h-4 w-4 accent-[hsl(var(--primary))]" checked={integration.enabled} disabled={busy !== null || missing.length > 0} onChange={(e) => save(e.target.checked)} />
-              Use live connection
+            <label className="flex items-center gap-2 text-sm font-medium text-foreground" title={missing.length ? t('integrations.setRequired') : undefined}>
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-[hsl(var(--primary))]"
+                checked={integration.enabled}
+                disabled={busy !== null || missing.length > 0}
+                onChange={(e) => save(e.target.checked)}
+              />
+              {t('integrations.useLive')}
             </label>
             <div className="flex gap-2">
-              <Button variant="secondary" size="sm" onClick={runTest} disabled={busy !== null}>{busy === 'test' ? 'Testing…' : 'Test connection'}</Button>
-              <Button size="sm" onClick={() => save()} disabled={busy !== null}>{busy === 'save' ? 'Saving…' : 'Save credentials'}</Button>
+              <Button variant="secondary" size="sm" onClick={runTest} disabled={busy !== null}>
+                {busy === 'test' ? t('integrations.testing') : t('integrations.test')}
+              </Button>
+              <Button size="sm" onClick={() => save()} disabled={busy !== null}>
+                {busy === 'save' ? t('integrations.saving') : t('integrations.save')}
+              </Button>
             </div>
           </div>
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs">
-            {missing.length ? <span className="text-warning">Needs {missing.map((f) => f.label).join(', ')} before it can go live.</span> : <span className="text-success">All required fields are set.</span>}
-            {integration.lastCheck ? <span className="text-muted-foreground">Last checked {formatTime(integration.lastCheck.at)} · {integration.lastCheck.ok ? 'reachable' : 'failed'}</span> : null}
+            {missing.length ? (
+              <span className="text-warning">{t('integrations.needs', { fields: missing.map((f) => f.label).join(', ') })}</span>
+            ) : (
+              <span className="text-success">{t('integrations.allSet')}</span>
+            )}
+            {integration.lastCheck ? (
+              <span className="text-muted-foreground">
+                {t('integrations.lastChecked', { time: formatTime(integration.lastCheck.at) })} ·{' '}
+                {integration.lastCheck.ok ? t('check.reachable') : t('check.failed')}
+              </span>
+            ) : null}
           </div>
         </>
       )}
@@ -125,6 +160,7 @@ function IntegrationCard({ integration, onChanged }: { integration: Integration;
 }
 
 export function IntegrationsPage() {
+  const t = useT();
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ['integrations'], queryFn: () => api.integrations(), retry: false });
   const refresh = () => {
@@ -137,9 +173,9 @@ export function IntegrationsPage() {
     const forbidden = q.error instanceof ApiError && q.error.status === 403;
     return (
       <div>
-        <PageHeader title="Integrations" description="Configure each source, test the connection, and switch it to live." />
+        <PageHeader title={t('integrations.title')} description={t('integrations.description')} />
         {forbidden ? (
-          <EmptyState title="Integration settings are restricted" message="Configuring connectors is a Production manager action. Sign in with a manager account." />
+          <EmptyState title={t('integrations.restricted')} message={t('integrations.restrictedBody')} />
         ) : (
           <ErrorState message={(q.error as Error).message} onRetry={() => q.refetch()} />
         )}
@@ -152,14 +188,16 @@ export function IntegrationsPage() {
 
   return (
     <div>
-      <PageHeader title="Integrations" description="Configure each source, test the connection, and switch it to live.">
-        {q.data ? <Badge variant="muted">{live} / {total} live</Badge> : null}
+      <PageHeader title={t('integrations.title')} description={t('integrations.description')}>
+        {q.data ? <Badge variant="muted">{t('integrations.liveCount', { live, total })}</Badge> : null}
       </PageHeader>
       <div className="mb-4">
-        <Banner title="Secrets stay on the server">Credentials are stored on the server and never shown again. A connector goes live only when its required fields are set and a manager enables it.</Banner>
+        <Banner title={t('integrations.secrets')}>{t('integrations.secretsBody')}</Banner>
       </div>
       {!q.data ? (
-        <Card className="p-5"><LoadingRows rows={6} /></Card>
+        <Card className="p-5">
+          <LoadingRows rows={6} />
+        </Card>
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">
           {q.data.integrations.map((integration) => (

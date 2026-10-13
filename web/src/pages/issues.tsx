@@ -14,16 +14,18 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { SeverityBadge, StatusBadge } from '@/components/status-badges';
 import { ErrorState, EmptyState, LoadingRows } from '@/components/states';
+import { useT } from '@/lib/i18n';
 
 const SEVERITIES = ['critical', 'high', 'medium', 'low'];
 const STATUSES = ['open', 'in_progress', 'resolved'];
 
 function IssueDrawer({ id, onClose }: { id: string; onClose: () => void }) {
+  const t = useT();
   const q = useQuery({ queryKey: ['issue', id], queryFn: () => api.issue(id) });
   const d = q.data;
   return (
     <Sheet open onOpenChange={(o) => !o && onClose()}>
-      <SheetContent title={d ? d.issue.title : 'Issue detail'}>
+      <SheetContent title={d ? d.issue.title : t('issues.detail')}>
         {q.isLoading ? <LoadingRows rows={8} /> : null}
         {q.isError ? <ErrorState message={(q.error as Error).message} /> : null}
         {d ? (
@@ -34,30 +36,34 @@ function IssueDrawer({ id, onClose }: { id: string; onClose: () => void }) {
               <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-semibold text-muted-foreground">{d.issue.id}</span>
             </div>
             <dl className="grid grid-cols-[120px_1fr] gap-x-4 gap-y-2 text-sm">
-              <dt className="text-muted-foreground">Description</dt>
+              <dt className="text-muted-foreground">{t('issues.field.description')}</dt>
               <dd className="text-foreground">{d.detail.symptom}</dd>
-              <dt className="text-muted-foreground">Area</dt>
-              <dd className="text-foreground">{d.issue.area} · {d.issue.lineName}</dd>
-              <dt className="text-muted-foreground">Model</dt>
+              <dt className="text-muted-foreground">{t('issues.field.area')}</dt>
+              <dd className="text-foreground">
+                {d.issue.area} · {d.issue.lineName}
+              </dd>
+              <dt className="text-muted-foreground">{t('issues.field.model')}</dt>
               <dd className="text-foreground">{d.issue.modelId}</dd>
               {d.detail.part ? (
                 <>
-                  <dt className="text-muted-foreground">Part</dt>
-                  <dd className="text-foreground">{d.detail.part.name} ({d.detail.part.supplier})</dd>
+                  <dt className="text-muted-foreground">{t('issues.field.part')}</dt>
+                  <dd className="text-foreground">
+                    {d.detail.part.name} ({d.detail.part.supplier})
+                  </dd>
                 </>
               ) : null}
               {d.detail.checkpoint ? (
                 <>
-                  <dt className="text-muted-foreground">Checkpoint</dt>
+                  <dt className="text-muted-foreground">{t('issues.field.checkpoint')}</dt>
                   <dd className="text-foreground">{d.detail.checkpoint.name}</dd>
                 </>
               ) : null}
-              <dt className="text-muted-foreground">Rework</dt>
-              <dd className="text-foreground">{d.issue.reworkMinutes ? formatMinutes(d.issue.reworkMinutes) : 'None recorded'}</dd>
+              <dt className="text-muted-foreground">{t('issues.field.rework')}</dt>
+              <dd className="text-foreground">{d.issue.reworkMinutes ? formatMinutes(d.issue.reworkMinutes) : t('issues.noneRecorded')}</dd>
             </dl>
 
             <div>
-              <h3 className="mb-2 text-sm font-semibold text-foreground">Event timeline</h3>
+              <h3 className="mb-2 text-sm font-semibold text-foreground">{t('issues.timeline')}</h3>
               <ol className="ml-1 border-l border-border">
                 {d.timeline.map((e, i) => (
                   <li key={i} className="relative pb-4 pl-4">
@@ -70,12 +76,11 @@ function IssueDrawer({ id, onClose }: { id: string; onClose: () => void }) {
             </div>
 
             <div>
-              <h3 className="mb-2 text-sm font-semibold text-foreground">Source references</h3>
+              <h3 className="mb-2 text-sm font-semibold text-foreground">{t('issues.sources')}</h3>
               <div className="flex flex-col gap-1.5">
                 {d.sources.map((s) => (
                   <div key={s.object} className="text-sm">
-                    <span className="font-semibold text-foreground">{s.label}</span>{' '}
-                    <span className="font-mono text-xs text-muted-foreground">{s.object}</span>
+                    <span className="font-semibold text-foreground">{s.label}</span> <span className="font-mono text-xs text-muted-foreground">{s.object}</span>
                   </div>
                 ))}
               </div>
@@ -88,6 +93,7 @@ function IssueDrawer({ id, onClose }: { id: string; onClose: () => void }) {
 }
 
 export function IssuesPage() {
+  const t = useT();
   const [searchParams, setSearchParams] = useSearchParams();
   const [q, setQ] = useState(searchParams.get('q') ?? '');
   const [severity, setSeverity] = useState(searchParams.get('severity') ?? '');
@@ -134,7 +140,7 @@ export function IssuesPage() {
     <TableHead className="cursor-pointer select-none hover:text-foreground" onClick={() => onSort(col)}>
       <span className="inline-flex items-center gap-1">
         {children}
-        {data?.sort === col ? (data.dir === 'asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />) : null}
+        {data?.sort === col ? data.dir === 'asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" /> : null}
       </span>
     </TableHead>
   );
@@ -152,15 +158,15 @@ export function IssuesPage() {
 
   const summary = data?.summary;
   const cells = [
-    { label: 'Total issues', value: summary?.total },
-    { label: 'Critical', value: summary?.critical },
-    { label: 'Open', value: summary?.open },
-    { label: 'Resolved', value: summary?.resolved },
+    { label: t('issues.total'), value: summary?.total },
+    { label: t('issues.critical'), value: summary?.critical },
+    { label: t('issues.open'), value: summary?.open },
+    { label: t('issues.resolved'), value: summary?.resolved },
   ];
 
   return (
     <div>
-      <PageHeader title="Production Issues" description="Find, investigate, and track production issues." />
+      <PageHeader title={t('issues.title')} description={t('issues.description')} />
 
       <div className="mb-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {cells.map((c) => (
@@ -173,36 +179,81 @@ export function IssuesPage() {
 
       <Card className="mb-4 flex flex-wrap items-end gap-3 p-4">
         <div className="min-w-[200px] flex-1">
-          <Label htmlFor="q">Search</Label>
+          <Label htmlFor="q">{t('issues.search')}</Label>
           <div className="relative mt-1">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input id="q" className="pl-8" placeholder="Issue title or ID" value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} />
+            <Input
+              id="q"
+              className="pl-8"
+              placeholder={t('issues.searchPlaceholder')}
+              value={q}
+              onChange={(e) => {
+                setQ(e.target.value);
+                setPage(1);
+              }}
+            />
           </div>
         </div>
         <div className="w-[150px]">
-          <Label htmlFor="sev">Severity</Label>
-          <Select id="sev" className="mt-1" value={severity} onChange={(e) => { setSeverity(e.target.value); setPage(1); }}>
-            <option value="">All</option>
-            {SEVERITIES.map((s) => <option key={s} value={s}>{s[0].toUpperCase() + s.slice(1)}</option>)}
+          <Label htmlFor="sev">{t('issues.severity')}</Label>
+          <Select
+            id="sev"
+            className="mt-1"
+            value={severity}
+            onChange={(e) => {
+              setSeverity(e.target.value);
+              setPage(1);
+            }}
+          >
+            <option value="">{t('common.all')}</option>
+            {SEVERITIES.map((s) => (
+              <option key={s} value={s}>
+                {t(`severity.${s}`)}
+              </option>
+            ))}
           </Select>
         </div>
         <div className="w-[150px]">
-          <Label htmlFor="st">Status</Label>
-          <Select id="st" className="mt-1" value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}>
-            <option value="">All</option>
-            {STATUSES.map((s) => <option key={s} value={s}>{s === 'in_progress' ? 'In progress' : s[0].toUpperCase() + s.slice(1)}</option>)}
+          <Label htmlFor="st">{t('issues.status')}</Label>
+          <Select
+            id="st"
+            className="mt-1"
+            value={status}
+            onChange={(e) => {
+              setStatus(e.target.value);
+              setPage(1);
+            }}
+          >
+            <option value="">{t('common.all')}</option>
+            {STATUSES.map((s) => (
+              <option key={s} value={s}>
+                {t(`status.${s}`)}
+              </option>
+            ))}
           </Select>
         </div>
         <div className="w-[170px]">
-          <Label htmlFor="area">Production area</Label>
-          <Select id="area" className="mt-1" value={area} onChange={(e) => { setArea(e.target.value); setPage(1); }}>
-            <option value="">All</option>
-            {(data?.areas ?? []).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+          <Label htmlFor="area">{t('issues.area')}</Label>
+          <Select
+            id="area"
+            className="mt-1"
+            value={area}
+            onChange={(e) => {
+              setArea(e.target.value);
+              setPage(1);
+            }}
+          >
+            <option value="">{t('common.all')}</option>
+            {(data?.areas ?? []).map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name}
+              </option>
+            ))}
           </Select>
         </div>
         {anyFilter ? (
           <Button variant="secondary" size="sm" className="ml-auto" onClick={reset}>
-            <X /> Reset filters
+            <X /> {t('issues.reset')}
           </Button>
         ) : null}
       </Card>
@@ -210,19 +261,31 @@ export function IssuesPage() {
       {query.isError ? (
         <ErrorState message={(query.error as Error).message} onRetry={() => query.refetch()} />
       ) : query.isLoading && !data ? (
-        <Card className="p-5"><LoadingRows rows={8} /></Card>
+        <Card className="p-5">
+          <LoadingRows rows={8} />
+        </Card>
       ) : data && data.total === 0 ? (
-        <EmptyState title="No issues match these filters" message="Try widening the date range or clearing a filter." action={anyFilter ? <Button variant="secondary" size="sm" onClick={reset}>Reset filters</Button> : undefined} />
+        <EmptyState
+          title={t('issues.noneTitle')}
+          message={t('issues.noneBody')}
+          action={
+            anyFilter ? (
+              <Button variant="secondary" size="sm" onClick={reset}>
+                {t('issues.reset')}
+              </Button>
+            ) : undefined
+          }
+        />
       ) : data ? (
         <Card className="overflow-hidden">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Issue</TableHead>
-                <SortHead col="severity">Severity</SortHead>
-                <SortHead col="area">Production area</SortHead>
-                <SortHead col="reportedAt">Reported</SortHead>
-                <SortHead col="status">Status</SortHead>
+                <TableHead>{t('issues.col.issue')}</TableHead>
+                <SortHead col="severity">{t('issues.severity')}</SortHead>
+                <SortHead col="area">{t('issues.area')}</SortHead>
+                <SortHead col="reportedAt">{t('issues.col.reported')}</SortHead>
+                <SortHead col="status">{t('issues.status')}</SortHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -232,28 +295,47 @@ export function IssuesPage() {
                     <div className="font-semibold text-foreground">{issue.title}</div>
                     <div className="text-xs text-muted-foreground">{issue.id}</div>
                   </TableCell>
-                  <TableCell><SeverityBadge value={issue.severity} /></TableCell>
+                  <TableCell>
+                    <SeverityBadge value={issue.severity} />
+                  </TableCell>
                   <TableCell>{issue.area}</TableCell>
-                  <TableCell className="whitespace-nowrap text-muted-foreground">{issue.date} {formatTime(issue.reportedAt)}</TableCell>
-                  <TableCell><StatusBadge value={issue.status} /></TableCell>
+                  <TableCell className="whitespace-nowrap text-muted-foreground">
+                    {issue.date} {formatTime(issue.reportedAt)}
+                  </TableCell>
+                  <TableCell>
+                    <StatusBadge value={issue.status} />
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
           <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-3 text-sm text-muted-foreground">
             <span>
-              {(data.page - 1) * data.pageSize + 1}–{Math.min(data.page * data.pageSize, data.total)} of {data.total}
+              {t('issues.range', { from: (data.page - 1) * data.pageSize + 1, to: Math.min(data.page * data.pageSize, data.total), total: data.total })}
             </span>
             <div className="flex items-center gap-2">
-              <Button variant="secondary" size="sm" disabled={data.page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>Previous</Button>
-              <span>Page {data.page} of {totalPages}</span>
-              <Button variant="secondary" size="sm" disabled={data.page >= totalPages} onClick={() => setPage((p) => p + 1)}>Next</Button>
+              <Button variant="secondary" size="sm" disabled={data.page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+                {t('common.previous')}
+              </Button>
+              <span>{t('common.page', { page: data.page, total: totalPages })}</span>
+              <Button variant="secondary" size="sm" disabled={data.page >= totalPages} onClick={() => setPage((p) => p + 1)}>
+                {t('common.next')}
+              </Button>
             </div>
           </div>
         </Card>
       ) : null}
 
-      {openId ? <IssueDrawer id={openId} onClose={() => { setOpenId(null); searchParams.delete('open'); setSearchParams(searchParams, { replace: true }); }} /> : null}
+      {openId ? (
+        <IssueDrawer
+          id={openId}
+          onClose={() => {
+            setOpenId(null);
+            searchParams.delete('open');
+            setSearchParams(searchParams, { replace: true });
+          }}
+        />
+      ) : null}
     </div>
   );
 }

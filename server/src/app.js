@@ -16,6 +16,9 @@ import { dashboardRouter } from './routes/dashboard.js';
 import { issuesRouter } from './routes/issues.js';
 import { analyticsRouter } from './routes/analytics.js';
 import { conversationsRouter } from './routes/conversations.js';
+import { secretaryRouter } from './routes/secretary.js';
+import { dashboardsRouter } from './routes/dashboards.js';
+import { automateRouter } from './routes/automate.js';
 
 export const createApp = () => {
   const app = express();
@@ -54,6 +57,11 @@ export const createApp = () => {
   app.use('/api/analytics', requireAuth, analyticsRouter);
   app.use('/api/conversations', requireAuth, conversationsRouter);
   app.use('/api/integrations', requireAuth, integrationsRouter);
+  app.use('/api/secretary', requireAuth, secretaryRouter);
+  app.use('/api/dashboards', requireAuth, dashboardsRouter);
+  // Power Automate: /flows and /trigger require a session inside the router;
+  // /inbound is authenticated by the shared-secret header only.
+  app.use('/api/automate', automateRouter);
   app.use('/api', requireAuth, systemRouter);
 
   app.use(notFound);

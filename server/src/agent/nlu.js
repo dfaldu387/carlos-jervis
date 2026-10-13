@@ -185,14 +185,31 @@ const INTENT_RULES = [
   {
     intent: INTENTS.CAPABILITIES,
     patterns: [
-      /what can you (do|answer)/,
-      /help me/,
+      // "what can you do", "what you can do for me", "what do you do"
+      /what (can |do )?you (can )?(do|help|answer|offer)/,
+      /what are you (able|capable)/,
+      // Bare help requests only; "can you help me with Friday problems" is a real query.
+      /\b(can|could) you help( me)?\s*\??$/,
+      /how (can|do) you help( me)?\s*\??$/,
+      /^(please )?help( me)?\s*\??$/,
       /which questions/,
       /what do you know/,
+      /what (are your|can your) (capabilities|features|abilities)/,
+      /^(your )?capabilities\b/,
+      /^what('?s| is) jervis/,
+      /^who are you/,
+      /what('?s| is) this/,
+      // German
       /was kannst du/,
-      /hilf mir/,
+      /was (kannst|machst) du (für mich|alles)/,
+      /wie kannst du (mir )?helfen/,
+      /\bhilf mir\b/,
+      /^hilfe\b/,
       /welche fragen/,
       /was weißt du/,
+      /was bist du/,
+      /wer bist du/,
+      /deine (funktionen|fähigkeiten)/,
     ],
   },
   {

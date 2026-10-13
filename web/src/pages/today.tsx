@@ -1,7 +1,21 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckSquare, Square, Plus, Trash2, Volume2, VolumeX, RefreshCw, ArrowUpRight, CalendarDays, Mail } from 'lucide-react';
+import {
+  CheckSquare,
+  Square,
+  Plus,
+  Trash2,
+  Volume2,
+  VolumeX,
+  RefreshCw,
+  ArrowUpRight,
+  CalendarDays,
+  Mail,
+  Factory,
+  Wrench,
+  type LucideIcon,
+} from 'lucide-react';
 import { api } from '@/lib/api';
 import { cn, formatTime } from '@/lib/utils';
 import { PageHeader } from '@/components/page-header';
@@ -16,6 +30,23 @@ const severityDot: Record<string, string> = {
   critical: 'bg-destructive',
   warning: 'bg-warning',
   info: 'bg-primary',
+};
+
+// Icon and accent per briefing section, so each card reads at a glance.
+const SECTION_META: Record<string, { icon: LucideIcon; chip: string }> = {
+  mail: { icon: Mail, chip: 'bg-primary/10 text-primary' },
+  production: { icon: Factory, chip: 'bg-warning/10 text-warning' },
+  maintenance: { icon: Wrench, chip: 'bg-primary/10 text-primary' },
+  calendar: { icon: CalendarDays, chip: 'bg-primary/10 text-primary' },
+  tasks: { icon: CheckSquare, chip: 'bg-primary/10 text-primary' },
+};
+
+/** The left edge of a card is tinted by its most severe item. */
+const accentBorder = (section: BriefingSection): string => {
+  const sev = section.items.map((i) => i.severity);
+  if (sev.includes('critical')) return 'border-l-2 border-l-destructive';
+  if (sev.includes('warning')) return 'border-l-2 border-l-warning';
+  return '';
 };
 
 /** Reads a short text aloud with the browser voice; used for the briefing. */
@@ -40,13 +71,22 @@ function useSpeaker() {
   return { supported, speaking, speak, stop };
 }
 
-function SectionCard({ section, onGo, empty }: { section: BriefingSection; onGo: (href: string) => void; empty: string }) {
+function SectionCard({ section, onGo, empty, className }: { section: BriefingSection; onGo: (href: string) => void; empty: string; className?: string }) {
+  const meta = SECTION_META[section.id] ?? { icon: CalendarDays, chip: 'bg-primary/10 text-primary' };
+  const Icon = meta.icon;
   return (
-    <Card className="p-5">
-      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{section.title}</div>
-      <div className="mt-1 text-base font-semibold text-foreground">{section.headline}</div>
+    <Card className={cn('flex flex-col p-5', accentBorder(section), className)}>
+      <div className="flex items-center gap-3">
+        <span className={cn('grid h-9 w-9 flex-none place-items-center rounded-lg', meta.chip)}>
+          <Icon className="h-[18px] w-[18px]" />
+        </span>
+        <div className="min-w-0">
+          <div className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">{section.title}</div>
+          <div className="line-clamp-2 text-sm font-semibold text-foreground">{section.headline}</div>
+        </div>
+      </div>
       {section.items.length > 0 ? (
-        <ul className="mt-3 flex flex-col gap-2">
+        <ul className="mt-3 flex flex-col divide-y divide-border/60">
           {section.items.map((it, i) => {
             const row = (
               <>
@@ -55,7 +95,7 @@ function SectionCard({ section, onGo, empty }: { section: BriefingSection; onGo:
                   <span className="block text-sm font-medium text-foreground">{it.label}</span>
                   <span className="block text-xs text-muted-foreground">{it.detail}</span>
                 </span>
-                {it.href ? <ArrowUpRight className="h-4 w-4 flex-none text-muted-foreground" /> : null}
+                {it.href ? <ArrowUpRight className="h-4 w-4 flex-none text-muted-foreground transition-transform group-hover/row:translate-x-0.5" /> : null}
               </>
             );
             return it.href ? (
@@ -63,20 +103,20 @@ function SectionCard({ section, onGo, empty }: { section: BriefingSection; onGo:
                 <button
                   type="button"
                   onClick={() => onGo(it.href!)}
-                  className="flex w-full items-start gap-2.5 rounded-md px-1 py-1 text-left transition-colors hover:bg-secondary/50"
+                  className="group/row -mx-2 flex w-[calc(100%+1rem)] items-start gap-2.5 rounded-md px-2 py-2 text-left transition-colors hover:bg-secondary/50"
                 >
                   {row}
                 </button>
               </li>
             ) : (
-              <li key={i} className="flex items-start gap-2.5 px-1 py-1">
+              <li key={i} className="flex items-start gap-2.5 py-2">
                 {row}
               </li>
             );
           })}
         </ul>
       ) : (
-        <p className="mt-2 text-sm text-muted-foreground">{empty}</p>
+        <p className="mt-3 text-sm text-muted-foreground">{empty}</p>
       )}
     </Card>
   );
@@ -195,45 +235,65 @@ export function TodayPage() {
       {briefing.isError ? <ErrorState message={(briefing.error as Error).message} onRetry={() => void briefing.refetch()} /> : null}
 
       <div className="grid gap-4 lg:grid-cols-3">
-        {/* Briefing sections */}
+        {/* Briefing: what needs attention. Calendar and tasks live in the right
+            rail where they are interactive, so they are left out here. */}
         <div className="flex flex-col gap-4 lg:col-span-2">
           {briefing.isLoading ? (
             <Card className="p-5">
               <LoadingRows rows={6} />
             </Card>
           ) : null}
-          {briefing.data ? (
-            <div className="grid gap-4 md:grid-cols-2">
-              {briefing.data.sections.map((s) => (
-                <SectionCard key={s.id} section={s} onGo={go} empty={t('today.nothing')} />
-              ))}
-            </div>
-          ) : null}
+          {briefing.data
+            ? (() => {
+                const sections = briefing.data.sections.filter((s) => s.id !== 'calendar' && s.id !== 'tasks');
+                const mail = sections.find((s) => s.id === 'mail');
+                const rest = sections.filter((s) => s.id !== 'mail');
+                return (
+                  <>
+                    {mail ? <SectionCard section={mail} onGo={go} empty={t('today.nothing')} /> : null}
+                    {rest.length > 0 ? (
+                      <div className="grid gap-4 md:grid-cols-2">
+                        {rest.map((s) => (
+                          <SectionCard key={s.id} section={s} onGo={go} empty={t('today.nothing')} />
+                        ))}
+                      </div>
+                    ) : null}
+                  </>
+                );
+              })()
+            : null}
         </div>
 
-        {/* Calendar + tasks */}
+        {/* Right rail: the interactive calendar and tasks. */}
         <div className="flex flex-col gap-4">
+          <Button variant="secondary" onClick={() => navigate('/inbox?filter=needsReply')}>
+            <Mail /> {t('today.needsReply')}
+          </Button>
+
           <Card className="p-5">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
                 <CalendarDays className="h-4 w-4" /> {t('today.calendar')}
               </h2>
-              <span className="text-xs text-muted-foreground">{calendar.data?.day ?? 'today'}</span>
+              <span className="text-xs text-muted-foreground">
+                {briefing.data ? new Date(briefing.data.date).toLocaleDateString(locale, { day: '2-digit', month: 'short' }) : ''}
+              </span>
             </div>
             {calendar.isLoading ? <LoadingRows rows={3} /> : null}
             {calendar.data && calendar.data.items.length === 0 ? <p className="text-sm text-muted-foreground">{t('today.noMeetings')}</p> : null}
-            <ul className="flex flex-col gap-2">
+            <ul className="flex flex-col gap-2.5">
               {calendar.data?.items.map((e) => (
-                <li key={e.id} className="rounded-lg border border-border px-3 py-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-medium text-foreground">{e.title}</span>
-                    <span className="flex-none text-xs tabular-nums text-muted-foreground">
-                      {formatTime(e.startsAt)}–{formatTime(e.endsAt)}
-                    </span>
+                <li key={e.id} className="flex gap-3">
+                  <div className="flex w-12 flex-none flex-col items-end pt-0.5 text-right">
+                    <span className="text-xs font-semibold tabular-nums text-foreground">{formatTime(e.startsAt)}</span>
+                    <span className="text-[10px] tabular-nums text-muted-foreground">{formatTime(e.endsAt)}</span>
                   </div>
-                  <div className="mt-0.5 truncate text-xs text-muted-foreground">
-                    {e.isOnline ? t('today.online') : e.location}
-                    {e.attendees.length ? ` · ${t('today.attendees', { count: e.attendees.length })}` : ''}
+                  <div className="relative min-w-0 flex-1 border-l-2 border-primary/40 pl-3">
+                    <span className="block text-sm font-medium text-foreground">{e.title}</span>
+                    <span className="block truncate text-xs text-muted-foreground">
+                      {e.isOnline ? t('today.online') : e.location}
+                      {e.attendees.length ? ` · ${t('today.attendees', { count: e.attendees.length })}` : ''}
+                    </span>
                   </div>
                 </li>
               ))}
@@ -294,10 +354,6 @@ export function TodayPage() {
               </details>
             ) : null}
           </Card>
-
-          <Button variant="secondary" onClick={() => navigate('/inbox?filter=needsReply')}>
-            <Mail /> {t('today.needsReply')}
-          </Button>
         </div>
       </div>
     </div>

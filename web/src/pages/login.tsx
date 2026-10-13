@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
 import { useT } from '@/lib/i18n';
 import type { DemoAccount } from '@/lib/types';
 
@@ -19,6 +20,9 @@ export function LoginPage() {
   const emailRef = useRef<HTMLInputElement>(null);
 
   const demo = useQuery({ queryKey: ['demo-accounts'], queryFn: () => api.demoAccounts(), staleTime: Infinity });
+  // Single sign-on is offered only when the server has an identity provider configured.
+  const sso = useQuery({ queryKey: ['sso'], queryFn: () => api.sso(), staleTime: Infinity });
+  const ssoError = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('sso_error') : null;
 
   useEffect(() => emailRef.current?.focus(), []);
 
@@ -58,6 +62,27 @@ export function LoginPage() {
 
         <h1 className="text-xl font-semibold text-foreground">{t('login.title')}</h1>
         <p className="mt-1 text-sm text-muted-foreground">{t('login.subtitle')}</p>
+
+        {ssoError ? <p className="mt-4 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{t('login.ssoError', { code: ssoError })}</p> : null}
+
+        {sso.data?.enabled && sso.data.loginPath ? (
+          <div className="mt-5 flex flex-col gap-3">
+            <Button size="lg" variant="secondary" onClick={() => window.location.assign(`${sso.data!.loginPath}?next=${encodeURIComponent('/')}`)}>
+              <svg aria-hidden="true" viewBox="0 0 21 21" className="h-4 w-4">
+                <rect x="1" y="1" width="9" height="9" fill="#f25022" />
+                <rect x="11" y="1" width="9" height="9" fill="#7fba00" />
+                <rect x="1" y="11" width="9" height="9" fill="#00a4ef" />
+                <rect x="11" y="11" width="9" height="9" fill="#ffb900" />
+              </svg>
+              {sso.data.label ?? t('login.sso')}
+            </Button>
+            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+              <Separator className="flex-1" />
+              {t('login.or')}
+              <Separator className="flex-1" />
+            </div>
+          </div>
+        ) : null}
 
         <form className="mt-5 flex flex-col gap-4" onSubmit={submit} noValidate>
           <div className="flex flex-col gap-1.5">

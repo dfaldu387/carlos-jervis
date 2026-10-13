@@ -188,9 +188,16 @@ export const buildDashboard = async ({ question, title, language, createdBy }) =
   };
 
   await refreshDashboard(dashboard);
+  // Drop breakdown charts (bar/line/pie) that have no rows for this period, so
+  // the dashboard never shows a blank tile. KPI tiles always carry a number
+  // (0 included) and are kept. If every chart is empty the KPIs still stand.
+  dashboard.widgets = dashboard.widgets.filter((w) => w.type === 'kpi' || hasChartData(w.data));
   saveDashboard(dashboard);
   return dashboard;
 };
+
+/** True when a chart widget has at least one data point. */
+const hasChartData = (data) => Array.isArray(data) && data.length > 0;
 
 /** Recomputes every widget's data from the repository; returns the dashboard. */
 export const refreshDashboard = async (dashboard) => {

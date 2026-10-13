@@ -302,16 +302,171 @@ never logged or returned.
 
 ---
 
+## Microsoft 365 live mode
+
+Once the `microsoft365` connector is configured **and** enabled on the
+Integrations page (`isLive('microsoft365')`), `secretary/provider.js` returns
+the live provider from `server/src/connectors/microsoft365.connector.js` and
+every mail/calendar route and agent tool above talks to Microsoft Graph for
+the configured mailbox. The interface is identical to the mock, so the
+responses keep the shapes documented at the top of this file; only `mode`
+changes to `live` (and `simulated` becomes `live` on a sent reply).
+
+**Authentication.** Client-credentials token from
+`POST https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token` with
+scope `https://graph.microsoft.com/.default`, cached in memory until one
+minute before it expires (concurrent calls share one token request). The
+secret and the token are never logged.
+
+**Calls** (all under `https://graph.microsoft.com/v1.0/users/{mailbox}`):
+
+| Operation | Graph request |
+| --- | --- |
+| `listMail` | `GET /mailFolders/inbox/messages?$top=&$orderby=receivedDateTime desc&$select=...&$expand=singleValueExtendedProperties($filter=id eq 'Integer 0x1081')`; `$filter=isRead eq false` for `unread` and `needsReply`, `$filter=flag/flagStatus eq 'flagged'` for `flagged`; `$search="..."` for `q` (Graph does not combine `$search` with `$filter`/`$orderby`, so with a query the filter is applied in Jervis and the hits are re-sorted newest first). Inbox counters come from `GET /mailFolders/inbox` (`totalItemCount`, `unreadItemCount`), `$count=true` on the flagged filter, and the needs-reply heuristic over the newest 100 unread messages. |
+| `getMail` | `GET /messages/{id}` (same `$select`/`$expand`); a Graph 404 is returned as `null`, so the route answers `404 not_found` exactly as in mock mode |
+| `updateMail` | `PATCH /messages/{id}` with `{ isRead, flag: { flagStatus: 'flagged' \| 'notFlagged' } }` |
+| `listEvents` | `GET /calendarView?startDateTime=&endDateTime=` for the civil day in the mailbox time zone, header `Prefer: outlook.timezone="W. Europe Standard Time"` (configurable via the `timezone` field, Windows or IANA name). `startsAt`/`endsAt` are converted to true ISO instants. |
+| `sendReply` | `POST /messages/{id}/reply` with `{ comment: body }` -> `{ ok: true, mode: 'live', id }` |
+| attachments | `GET /messages/{id}/attachments?$select=name,size`, only for messages with `hasAttachments` |
+
+**Mapping.** `body` is `body.content`, with tags stripped and entities decoded
+when `contentType` is `html`; `preview` is `bodyPreview` (140 chars);
+`replied` reads the Outlook "last verb executed" property (102 reply,
+103 reply-all); `category` is a keyword heuristic over sender and subject
+that mirrors the mock categories (`supplier`, `maintenance`, `quality`, `hr`,
+`meeting`, `it`, `other`).
+
+**`needsReply` heuristic.** A message needs a reply when it is unread, has
+not been replied to, is addressed to the mailbox in `To` (not only Cc), is
+not a draft, and does not come from an automated sender (`noreply`,
+`no-reply`, `donotreply`, `notifications`, `mailer-daemon`, `postmaster`).
+Read messages are left to the user, so the live count is usually lower than
+the mock inbox's.
+
+**Errors.** Graph failures are never hidden behind mock data. A failed token
+request, a 401/403 from Graph, a timeout (10 s) or a 5xx becomes
+`502 { "error": "internal_error", "message": "Microsoft Graph ... failed (500): ..." }`
+through the standard error handler (the thrown error carries `status`,
+`statusCode` and a `code` such as `ms365_token`, `ms365_denied`,
+`ms365_timeout`, `ms365_upstream`); a missing message on reply is
+`404 request_error`.
+
+---
+
+## Power Automate
+
+Two directions, both behind the `power_automate` connector on the
+Integrations page (kind `automation`): Jervis **starts** approved flows after
+an explicit confirmation, and flows **ask** Jervis questions through an
+inbound endpoint. Nothing runs from a chat message alone: the agent only
+proposes a flow (`result.automation`, see the tool below); the actual trigger
+is a separate confirmed call.
+
+Settings (`GET /api/integrations`): `triggerUrl` (secret - the HTTP-trigger
+URL of an approved flow, it carries the signature), `inboundSecret` (secret),
+`flowCatalog` (optional JSON list). Mock mode (not configured or not enabled)
+lists three built-in sample flows and simulates every trigger; live mode
+posts to the flow's `url`, or to the default `triggerUrl` when the catalog
+entry has none.
+
+Flow catalog format:
+
+```json
+[
+  { "name": "escalate-quality-issue", "label": "Escalate a quality issue", "description": "...", "url": "https://prod-xx.westeurope.logic.azure.com/..." },
+  { "name": "request-maintenance-visit", "label": "Request a maintenance visit" }
+]
+```
+
+`name` is slugified (`Notify Shift Leads` -> `notify-shift-leads`); entries
+without a name are skipped; invalid JSON falls back to the samples with a
+warning in the server log. URLs are never returned to the browser.
+
+**Probe** (`POST /api/integrations/power_automate/test`): in live mode posts
+`{ "ping": true, "source": "jervis", "at": "<iso>" }` to the default trigger
+URL and reports the status (200/202 = ok, 401/403 = signature rejected,
+404 = no flow). Build the flow to answer a ping with 200 and do nothing else.
+In mock mode nothing is called.
+
+### `GET /api/automate/flows` - any signed-in user
+
+```json
+{ "items": [{ "name": "escalate-quality-issue", "label": "Escalate a quality issue", "description": "...", "mode": "mock" }], "mode": "mock" | "live" }
+```
+
+### `POST /api/automate/trigger` - manager (or any role holding `automate:run`)
+
+Body `{ flow: string, payload?: object, confirm: boolean }`.
+
+- unknown `flow` -> `404 not_found`; missing `flow` -> `400 request_error`;
+- `confirm !== true` -> `400 { "error": "confirmation_required" }` (audited as `automate.trigger` / `refused`);
+- mock mode -> `200 { "ok": true, "mode": "simulated", "runId": "run_...", "flow": "..." }` (audited `simulated`);
+- live mode -> `POST <flow url>` with the envelope below, 10 s timeout:
+  `200 { "ok": true, "mode": "live", "runId": "<from the flow's response: runId | run_id | id, else generated>", "flow", "status": 202 }` (audited `sent`), or
+  `502 { "ok": false, "mode": "live", "runId", "flow", "status", "error": "Flow trigger returned 500." }` (audited `failed`).
+
+Envelope the flow receives:
+
+```json
+{ "flow": "escalate-quality-issue", "payload": { "errorCode": "E-7781" }, "requestedBy": { "userId": "u_...", "role": "manager" }, "requestedAt": "2026-10-13T08:00:00.000Z" }
+```
+
+Permission note: the `automate:run` permission is checked as
+`role === 'manager' || permissions.includes('automate:run')` until the
+permission is added to the manager and engineer roles in
+`server/src/security/roles.js` (TODO in `server/src/automate/index.js`).
+
+### `POST /api/automate/inbound` - shared secret only
+
+For flows that call Jervis (a Teams bot, a scheduled report, ...). It is
+**not** behind the session: the only accepted credential is the header
+`x-jervis-automate-secret` matching `inboundSecret` (constant-time compare).
+
+- no secret configured -> `503 { "error": "automate_inbound_disabled" }`
+- wrong or missing header -> `401 unauthorized` (audited `automate.inbound` / `refused`)
+- more than 60 calls per minute from one address -> `429 rate_limited` (in memory)
+- body `{ question: string (1-600), language?: 'en' | 'de', sessionId?: string }`
+
+The question runs through the same `answerQuestion` as `POST /api/chat` with
+a fixed service identity `{ userId: 'power-automate', role: 'engineer', via: 'automate' }`
+(engineer permissions, so no cost figures, no audit trail, no integration
+admin) and returns the same JSON as chat (`sessionId`, `answer`, `language`,
+`interpretation`, ..., `access: { role: 'engineer' }`). A `sessionId` is
+honoured only when it belongs to the service identity. Audited as
+`automate.inbound` with the intent as resource and the question as detail;
+the question is also in the query log.
+
+### Tool `automate.trigger` (`permission: 'automate:run'`)
+
+Side-effect free. Resolves the flow the user named (exact name, exact label,
+or fuzzy word match: "escalate the quality problem" ->
+`escalate-quality-issue`) and returns a proposal
+
+```json
+{ "automation": { "flow": "escalate-quality-issue", "label": "Escalate a quality issue", "payload": {}, "status": "proposed", "mode": "mock" }, "query": "...", "available": [...] }
+```
+
+(or `automation: null` with the available flows when nothing matched). The
+orchestrator attaches it as `result.automation`; the client shows a confirm
+button that calls `POST /api/automate/trigger` with `confirm: true`. The chat
+intent that selects this tool (`TRIGGER_FLOW`) and its narration are the next
+step; the tool is registered and unit-tested today.
+
+---
+
 ## Integrations page
 
-A new connector `microsoft365` ("Microsoft 365 (mail and calendar)", kind
+The connector `microsoft365` ("Microsoft 365 (mail and calendar)", kind
 `mail-calendar`) appears in `GET /api/integrations` and `GET /api/sources`
-with fields `tenantId`, `clientId`, `clientSecret` (secret), `mailbox`.
-`POST /api/integrations/microsoft365/test` acquires an Entra ID token and
-calls Graph `GET /users/{mailbox}/mailFolders`. Even when configured and
-enabled, the live mail/calendar calls are stubbed (`501 ms365_not_wired`)
-until the mailbox scope is agreed with the client - see
-`server/src/connectors/microsoft365.connector.js`.
+with fields `tenantId`, `clientId`, `clientSecret` (secret), `mailbox` and
+the optional `timezone`. `POST /api/integrations/microsoft365/test` acquires
+an Entra ID token and calls Graph `GET /users/{mailbox}/mailFolders`. Once
+configured and enabled the live calls described under "Microsoft 365 live
+mode" replace the synthetic mailbox.
+
+The connector `power_automate` ("Power Automate", kind `automation`) has
+fields `triggerUrl` (secret), `inboundSecret` (secret) and `flowCatalog`; see
+"Power Automate" above.
 
 `GET /api/sources` tool entries now include `permission`.
 
@@ -325,6 +480,10 @@ until the mailbox scope is agreed with the client - see
 | `MS365_CLIENT_ID` | Application (client) id with Mail.Read, Mail.Send, Calendars.Read |
 | `MS365_CLIENT_SECRET` | Client secret (never returned to the browser) |
 | `MS365_MAILBOX` | User principal name of the mailbox Jervis reads |
+| `MS365_TIMEZONE` | Optional mailbox time zone for the calendar window and `Prefer: outlook.timezone` (default `W. Europe Standard Time`) |
+| `POWER_AUTOMATE_TRIGGER_URL` | Default HTTP-trigger URL of an approved flow (secret; carries the signature) |
+| `POWER_AUTOMATE_INBOUND_SECRET` | Shared secret flows send as `x-jervis-automate-secret`; inbound is disabled while empty |
+| `POWER_AUTOMATE_FLOWS` | Optional JSON catalog of allowed flows (`[{ name, label, description?, url? }]`) |
 | `JERVIS_TASKS_FILE` | Path of the task store (default `server/data/tasks.json`) |
 | `JERVIS_DASHBOARDS_FILE` | Path of the dashboard store (default `server/data/dashboards.json`) |
 
@@ -340,5 +499,7 @@ alongside `server/data/integrations.json`.
 `mail.read`, `mail.update`, `mail.draft`, `mail.reply` (outcome `simulated` |
 `sent` | `refused`), `calendar.read`, `task.read`, `task.create`,
 `task.update`, `task.delete`, `briefing.read`, `dashboard.create`,
-`dashboard.read`, `dashboard.delete`, `tool.withheld` (outcome `denied`).
+`dashboard.read`, `dashboard.delete`, `tool.withheld` (outcome `denied`),
+`automate.trigger` (outcome `simulated` | `sent` | `failed` | `refused`),
+`automate.inbound` (outcome `ok` | `refused`).
 Visible to managers under `GET /api/audit` (`events`).

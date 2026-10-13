@@ -5,7 +5,7 @@ import { formatRange } from '../utils/dates.js';
 import { GREETING_PROMPT, GREETING_PROMPT_DE, currentHour, greetingFor } from './greeting.js';
 import { labelFor } from './labels.js';
 import { DIMENSION_LABELS } from '../data/repository.js';
-import { dateLabel, dateTimeLabel, minutesLabel, normalizeLanguage, t, tCount, timeLabel } from './i18n.js';
+import { dateLabel, dateTimeLabel, hasKey, minutesLabel, normalizeLanguage, numberLabel, t, tCount, timeLabel } from './i18n.js';
 
 /**
  * Answer composition.
@@ -20,10 +20,13 @@ import { dateLabel, dateTimeLabel, minutesLabel, normalizeLanguage, t, tCount, t
  * data shapes are identical in both languages.
  */
 
-const plural = (count, singular, pluralForm = `${singular}s`) =>
-  `${count} ${count === 1 ? singular : pluralForm}`;
-
 export const formatMinutes = (minutes, language = 'en') => minutesLabel(minutes, language);
+
+/** Column heading for a dimension; the repository's English wording stays the source for `en`. */
+const dimensionLabel = (dimension, language) =>
+  language === 'de'
+    ? t('de', `dimension.${dimension}`, {})
+    : DIMENSION_LABELS[dimension] ?? t('en', 'dimension.default');
 
 const topBucketText = (buckets, dimension, limit = 3) =>
   buckets
@@ -40,15 +43,15 @@ const metric = (key, label, value, format, source, extra = {}) => ({
   ...extra,
 });
 
-const bucketTable = (id, title, dimension, buckets, source) => ({
+const bucketTable = (id, title, dimension, buckets, source, language) => ({
   id,
   title,
   source,
   columns: [
-    { key: 'label', label: DIMENSION_LABELS[dimension] ?? 'Dimension', align: 'left' },
-    { key: 'count', label: 'Issues', align: 'right', format: 'integer' },
-    { key: 'vehicles', label: 'Vehicles', align: 'right', format: 'integer' },
-    { key: 'reworkMinutes', label: 'Rework time', align: 'right', format: 'minutes' },
+    { key: 'label', label: dimensionLabel(dimension, language), align: 'left' },
+    { key: 'count', label: t(language, 'column.issues'), align: 'right', format: 'integer' },
+    { key: 'vehicles', label: t(language, 'column.vehicles'), align: 'right', format: 'integer' },
+    { key: 'reworkMinutes', label: t(language, 'column.reworkMinutes'), align: 'right', format: 'minutes' },
   ],
   rows: buckets.map((bucket) => ({
     label: bucket.label ?? labelFor(dimension, bucket.key),
@@ -58,18 +61,18 @@ const bucketTable = (id, title, dimension, buckets, source) => ({
   })),
 });
 
-const issueTable = (rows) => ({
+const issueTable = (rows, language) => ({
   id: 'issue-records',
-  title: 'Representative issue records',
+  title: t(language, 'table.issueRecords'),
   source: 'databricks',
   columns: [
-    { key: 'detectedAt', label: 'Detected', align: 'left', format: 'time' },
-    { key: 'errorCode', label: 'Code', align: 'left' },
-    { key: 'symptom', label: 'Symptom', align: 'left' },
-    { key: 'line', label: 'Line', align: 'left' },
-    { key: 'model', label: 'Model', align: 'left' },
-    { key: 'severity', label: 'Severity', align: 'left', format: 'severity' },
-    { key: 'rework', label: 'Rework', align: 'left' },
+    { key: 'detectedAt', label: t(language, 'column.detected'), align: 'left', format: 'time' },
+    { key: 'errorCode', label: t(language, 'column.code'), align: 'left' },
+    { key: 'symptom', label: t(language, 'column.symptom'), align: 'left' },
+    { key: 'line', label: t(language, 'column.line'), align: 'left' },
+    { key: 'model', label: t(language, 'column.model'), align: 'left' },
+    { key: 'severity', label: t(language, 'column.severity'), align: 'left', format: 'severity' },
+    { key: 'rework', label: t(language, 'column.rework'), align: 'left' },
   ],
   rows: rows.map((row) => ({
     detectedAt: row.detectedAt,
@@ -132,51 +135,52 @@ const fact = (facts, toolId) => facts.find((entry) => entry.tool === toolId)?.da
 const measureValue = (measures, key) =>
   measures?.measures?.find((entry) => entry.key === key)?.value ?? null;
 
-const kpiTiles = (facts) => {
+const kpiTiles = (facts, language = 'en') => {
   const measures = fact(facts, 'powerbi.measures');
   const impact = fact(facts, 'issues.vehicleImpact') ?? fact(facts, 'issues.rework')?.impact;
   const trend = fact(facts, 'issues.trend');
   const tiles = [];
+  const label = (key) => t(language, `metric.${key}`);
 
   const issueTotal = measureValue(measures, 'issues_total');
   if (issueTotal !== null) {
     tiles.push(
-      metric('issues_total', 'Issues recorded', issueTotal, 'integer', 'powerbi', {
+      metric('issues_total', label('issuesTotal'), issueTotal, 'integer', 'powerbi', {
         trend: trend?.series?.map((point) => point.count) ?? null,
       }),
     );
   }
 
   if (impact) {
-    tiles.push(metric('vehicles_affected', 'Vehicles affected', impact.affected, 'integer', 'databricks'));
-    tiles.push(metric('vehicles_reworked', 'Vehicles reworked', impact.reworked, 'integer', 'databricks'));
+    tiles.push(metric('vehicles_affected', label('vehiclesAffected'), impact.affected, 'integer', 'databricks'));
+    tiles.push(metric('vehicles_reworked', label('vehiclesReworked'), impact.reworked, 'integer', 'databricks'));
     tiles.push(
-      metric('vehicles_removed', 'Removed from line', impact.removed, 'integer', 'databricks', {
+      metric('vehicles_removed', label('vehiclesRemoved'), impact.removed, 'integer', 'databricks', {
         tone: impact.removed > 0 ? 'warning' : 'neutral',
       }),
     );
-    tiles.push(metric('rework_minutes', 'Rework time', impact.reworkMinutes, 'minutes', 'databricks'));
+    tiles.push(metric('rework_minutes', label('reworkMinutes'), impact.reworkMinutes, 'minutes', 'databricks'));
   }
 
   const yieldValue = measureValue(measures, 'first_pass_yield');
   if (yieldValue !== null) {
-    tiles.push(metric('first_pass_yield', 'First pass yield (est.)', yieldValue, 'percent', 'powerbi'));
+    tiles.push(metric('first_pass_yield', label('firstPassYield'), yieldValue, 'percent', 'powerbi'));
   }
 
   const cost = measureValue(measures, 'rework_cost');
   if (cost !== null) {
-    tiles.push(metric('rework_cost', 'Estimated rework cost', cost, 'currency', 'powerbi', { restricted: true }));
+    tiles.push(metric('rework_cost', label('reworkCost'), cost, 'currency', 'powerbi', { restricted: true }));
   }
 
   const downtime = fact(facts, 'telemetry.downtime');
   if (downtime) {
-    tiles.push(metric('downtime_minutes', 'Recorded downtime', downtime.totalMinutes, 'minutes', 'mqtt'));
+    tiles.push(metric('downtime_minutes', label('downtime'), downtime.totalMinutes, 'minutes', 'mqtt'));
   }
 
   const maintenance = fact(facts, 'maintenance.tickets');
   if (maintenance) {
     tiles.push(
-      metric('maintenance_open', 'Open maintenance tickets', maintenance.open, 'integer', 'integral_portal', {
+      metric('maintenance_open', label('maintenanceOpen'), maintenance.open, 'integer', 'integral_portal', {
         tone: maintenance.open > 0 ? 'warning' : 'good',
       }),
     );
@@ -193,9 +197,9 @@ const kpiTiles = (facts) => {
 
   const mail = fact(facts, 'mail.search');
   if (mail && mail.unread !== undefined) {
-    tiles.push(metric('mail_unread', 'Unread mail', mail.unread, 'integer', 'microsoft365'));
+    tiles.push(metric('mail_unread', label('mailUnread'), mail.unread, 'integer', 'microsoft365'));
     tiles.push(
-      metric('mail_needs_reply', 'Awaiting reply', mail.needsReply, 'integer', 'microsoft365', {
+      metric('mail_needs_reply', label('mailNeedsReply'), mail.needsReply, 'integer', 'microsoft365', {
         tone: mail.needsReply > 0 ? 'warning' : 'good',
       }),
     );
@@ -219,27 +223,13 @@ const FOLLOW_UP_KEYS = {
   [INTENTS.DRAFT_REPLY]: 'draft',
   [INTENTS.POWERBI_MEASURE]: 'measure',
   [INTENTS.CREATE_DASHBOARD]: 'dashboard',
-};
-
-/** English-only follow-ups for the intents that keep their original wording. */
-const FOLLOW_UPS_EN = {
-  [INTENTS.REWORK_COUNT]: [
-    'Which vehicles were removed from the line?',
-    'What is the rework cost impact?',
-    'Which line produced the most rework?',
-  ],
-  [INTENTS.DOWNTIME]: [
-    'What maintenance tickets were opened?',
-    'Which line stopped the longest?',
-    'What problems happened during the stops?',
-  ],
+  [INTENTS.REWORK_COUNT]: 'rework',
+  [INTENTS.DOWNTIME]: 'downtime',
 };
 
 const followUpsFor = (intent, language) => {
-  const key = FOLLOW_UP_KEYS[intent];
-  if (key) return [1, 2, 3].map((index) => t(language, `followUps.${key}.${index}`));
-  if (language === 'en' && FOLLOW_UPS_EN[intent]) return FOLLOW_UPS_EN[intent];
-  return [1, 2, 3].map((index) => t(language, `followUps.default.${index}`));
+  const key = FOLLOW_UP_KEYS[intent] ?? 'default';
+  return [1, 2, 3].map((index) => t(language, `followUps.${key}.${index}`));
 };
 
 /**
@@ -266,6 +256,7 @@ export const compose = ({ interpretation, facts, access, language, withheld = []
   const charts = [];
   const links = [];
   let spokenOverride = null;
+  let followUpsOverride = null;
 
   const measures = fact(facts, 'powerbi.measures');
   const impact = fact(facts, 'issues.vehicleImpact') ?? fact(facts, 'issues.rework')?.impact;
@@ -299,6 +290,7 @@ export const compose = ({ interpretation, facts, access, language, withheld = []
   const briefing = fact(facts, 'briefing.compose');
   const measure = fact(facts, 'powerbi.measure');
   const dashboard = fact(facts, 'dashboard.create')?.dashboard ?? null;
+  const automate = fact(facts, 'automate.trigger');
 
   const total = issueTotal ?? issues?.total ?? errorCodes?.buckets?.reduce((sum, b) => sum + b.count, 0) ?? 0;
   const minutes = (value) => minutesLabel(value, lang);
@@ -427,16 +419,20 @@ export const compose = ({ interpretation, facts, access, language, withheld = []
 
       case INTENTS.AFFECTED_MODELS: {
         const modelCount = models?.buckets?.length ?? 0;
-        headline = `${modelCount} vehicle ${modelCount === 1 ? 'model' : 'models'} affected ${on}${scope}`;
+        headline = t(lang, 'models.headline', { count: modelCount, on, scope });
         if (modelCount === 0) {
-          narrative.push(`No vehicle models were affected for ${period}${scope}.`);
+          narrative.push(t(lang, 'models.none', { period, scope }));
           break;
         }
         narrative.push(
-          `${topBucketText(models.buckets, 'modelId', 5)} - ${plural(impact?.affected ?? 0, 'vehicle')} in total${scope}.`,
+          t(lang, 'models.narrative', {
+            models: topBucketText(models.buckets, 'modelId', 5),
+            vehicles: count('count.vehicle', impact?.affected ?? 0),
+            scope,
+          }),
         );
         if (errorCodes?.buckets?.length) {
-          narrative.push(`The issues behind those models were mainly ${topBucketText(errorCodes.buckets, 'errorCode')}.`);
+          narrative.push(t(lang, 'models.causes', { codes: topBucketText(errorCodes.buckets, 'errorCode') }));
         }
         break;
       }
@@ -475,116 +471,153 @@ export const compose = ({ interpretation, facts, access, language, withheld = []
 
       case INTENTS.PARTS_INVOLVED: {
         const partCount = parts?.buckets?.length ?? 0;
-        headline = `${partCount} ${partCount === 1 ? 'part' : 'parts'} involved ${on}${scope}`;
+        headline = t(lang, 'parts.headline', { count: partCount, on, scope });
         if (partCount === 0) {
-          narrative.push(`No parts were recorded against issues for ${period}${scope}.`);
+          narrative.push(t(lang, 'parts.none', { period, scope }));
           break;
         }
-        narrative.push(
-          `The components appearing most often were ${topBucketText(parts.buckets, 'partId', 4)}.`,
-        );
+        narrative.push(t(lang, 'parts.narrative', { parts: topBucketText(parts.buckets, 'partId', 4) }));
         if (errorCodes?.buckets?.length) {
-          narrative.push(`They are associated with ${topBucketText(errorCodes.buckets, 'errorCode', 2)}.`);
+          narrative.push(t(lang, 'parts.codes', { codes: topBucketText(errorCodes.buckets, 'errorCode', 2) }));
         }
         break;
       }
 
       case INTENTS.VEHICLE_COUNT: {
-        headline = `${impact?.affected ?? 0} vehicles affected ${on}${scope}`;
+        headline = t(lang, 'vehicles.headline', { count: impact?.affected ?? 0, on, scope });
         narrative.push(
-          `${plural(impact?.affected ?? 0, 'vehicle')} were affected ${on}${scope}. ${impact?.reworked ?? 0} needed rework and ${impact?.removed ?? 0} were removed from the line.`,
+          t(lang, 'vehicles.narrative', {
+            vehicles: count('count.vehicle', impact?.affected ?? 0),
+            on,
+            scope,
+            reworked: impact?.reworked ?? 0,
+            removed: impact?.removed ?? 0,
+          }),
         );
         if (models?.buckets?.length) {
-          narrative.push(`By model: ${topBucketText(models.buckets, 'modelId', 5)}.`);
+          narrative.push(t(lang, 'vehicles.byModel', { models: topBucketText(models.buckets, 'modelId', 5) }));
         }
         break;
       }
 
       case INTENTS.REWORK_COUNT: {
-        headline = `${impact?.reworked ?? 0} vehicles reworked ${on}${scope}`;
+        headline = t(lang, 'rework.headline', { count: impact?.reworked ?? 0, on, scope });
         narrative.push(
-          `${plural(impact?.reworked ?? 0, 'vehicle')} went through rework ${on}${scope}, of which ${impact?.removed ?? 0} were removed from the line. Booked rework time was ${formatMinutes(impact?.reworkMinutes ?? 0)}.`,
+          t(lang, 'rework.narrative', {
+            vehicles: count('count.vehicle', impact?.reworked ?? 0),
+            on,
+            scope,
+            removed: impact?.removed ?? 0,
+            minutes: minutes(impact?.reworkMinutes ?? 0),
+          }),
         );
         if (rework?.buckets?.length) {
-          narrative.push(`By category: ${topBucketText(rework.buckets, 'reworkCategoryId', 5)}.`);
+          narrative.push(t(lang, 'rework.byCategory', { categories: topBucketText(rework.buckets, 'reworkCategoryId', 5) }));
         }
         break;
       }
 
       case INTENTS.CHECKPOINT_DETECTION: {
         const checkpointCount = checkpoints?.buckets?.length ?? 0;
-        headline = `${checkpointCount} ${checkpointCount === 1 ? 'checkpoint' : 'checkpoints'} detected issues ${on}${scope}`;
+        headline = t(lang, 'checkpoints.headline', { count: checkpointCount, on, scope });
         if (checkpointCount === 0) {
-          narrative.push(`No checkpoint detections were recorded for ${period}${scope}.`);
+          narrative.push(t(lang, 'checkpoints.none', { period, scope }));
           break;
         }
-        narrative.push(`Detections came from ${topBucketText(checkpoints.buckets, 'checkpointId', 5)}.`);
+        narrative.push(
+          t(lang, 'checkpoints.narrative', { checkpoints: topBucketText(checkpoints.buckets, 'checkpointId', 5) }),
+        );
         break;
       }
 
       case INTENTS.COST_CENTER_IMPACT: {
         const centerCount = costCenters?.buckets?.length ?? 0;
-        headline = `Cost center impact for ${period}${scope}`;
+        headline = t(lang, 'cost.headline', { period, scope });
         if (!access.permissions.includes('finance:read')) {
-          narrative.push(
-            'Cost figures sit in the restricted Finance workspace report. Your role can see the issue distribution across cost centers, but not the monetary values.',
-          );
+          narrative.push(t(lang, 'cost.restricted'));
         }
         if (centerCount > 0) {
-          narrative.push(`Issues distributed across ${topBucketText(costCenters.buckets, 'costCenter', 5)}.`);
+          narrative.push(t(lang, 'cost.distribution', { centers: topBucketText(costCenters.buckets, 'costCenter', 5) }));
         }
-        narrative.push(`Rework effort behind those issues totals ${formatMinutes(impact?.reworkMinutes ?? 0)}.`);
+        narrative.push(t(lang, 'cost.rework', { minutes: minutes(impact?.reworkMinutes ?? 0) }));
         break;
       }
 
       case INTENTS.MAINTENANCE_STATUS: {
-        headline = `${maintenance?.total ?? 0} maintenance tickets ${on}${scope}`;
+        headline = t(lang, 'maintenance.headline', { count: maintenance?.total ?? 0, on, scope });
         narrative.push(
-          `The Integral Portal holds ${plural(maintenance?.total ?? 0, 'ticket')} for ${period}${scope}; ${maintenance?.open ?? 0} are still open.`,
+          t(lang, 'maintenance.narrative', {
+            tickets: count('count.ticketShort', maintenance?.total ?? 0),
+            period,
+            scope,
+            open: maintenance?.open ?? 0,
+          }),
         );
         if (downtime?.totalMinutes) {
           narrative.push(
-            `Telemetry recorded ${formatMinutes(downtime.totalMinutes)} of downtime across ${plural(downtime.rows.length, 'stop')} in the same window.`,
+            t(lang, 'maintenance.downtime', {
+              minutes: minutes(downtime.totalMinutes),
+              stops: count('count.stop', downtime.rows.length),
+            }),
           );
         }
         break;
       }
 
       case INTENTS.DOWNTIME: {
-        headline = `${formatMinutes(downtime?.totalMinutes ?? 0)} of downtime ${on}${scope}`;
+        headline = t(lang, 'downtime.headline', { minutes: minutes(downtime?.totalMinutes ?? 0), on, scope });
         narrative.push(
-          `${plural(downtime?.rows?.length ?? 0, 'stop event')} were published to the broker for ${period}${scope}, totalling ${formatMinutes(downtime?.totalMinutes ?? 0)}.`,
+          t(lang, 'downtime.narrative', {
+            events: count('count.stopEvent', downtime?.rows?.length ?? 0),
+            period,
+            on,
+            scope,
+            minutes: minutes(downtime?.totalMinutes ?? 0),
+          }),
         );
         if (downtime?.byLine?.length) {
           narrative.push(
-            `By line: ${downtime.byLine.map((entry) => `${entry.label} ${formatMinutes(entry.minutes)}`).join(', ')}.`,
+            t(lang, 'downtime.byLine', {
+              // German brackets the duration so "Min." never collides with the full stop.
+              lines: downtime.byLine
+                .map((entry) => (lang === 'de' ? `${entry.label} (${minutes(entry.minutes)})` : `${entry.label} ${minutes(entry.minutes)}`))
+                .join(', '),
+            }),
           );
         }
         if (maintenance?.total) {
-          bullets.push({ text: `${plural(maintenance.total, 'maintenance ticket')} booked in the same period` });
+          bullets.push({ text: t(lang, 'downtime.maintenance', { tickets: count('count.ticket', maintenance.total) }) });
         }
         break;
       }
 
       case INTENTS.TREND: {
-        headline = `Issue trend for ${formatRange(interpretation.resolvedTimeframe)}${scope}`;
+        headline = t(lang, 'trend.headline', { range: formatRange(interpretation.resolvedTimeframe), scope });
         narrative.push(
-          `Across ${trend?.series?.length ?? 0} days the average is ${trend?.average ?? 0} issues per day${trend?.peak ? `, peaking at ${trend.peak.count} on ${trend.peak.date}` : ''}.`,
+          t(lang, 'trend.narrative', {
+            days: trend?.series?.length ?? 0,
+            average: numberLabel(trend?.average ?? 0, lang),
+            // The peak date reads as "Montag 2026-10-06" in German; English keeps the bare ISO date.
+            peak: trend?.peak
+              ? t(lang, 'trend.peak', {
+                  count: trend.peak.count,
+                  date: lang === 'de' ? dateLabel(trend.peak.date, 'de') : trend.peak.date,
+                })
+              : '',
+          }),
         );
         if (errorCodes?.buckets?.length) {
-          narrative.push(`The trend is driven mainly by ${topBucketText(errorCodes.buckets, 'errorCode', 2)}.`);
+          narrative.push(t(lang, 'trend.drivers', { codes: topBucketText(errorCodes.buckets, 'errorCode', 2) }));
         }
         break;
       }
 
       case INTENTS.DASHBOARD_LOOKUP: {
-        headline = `${reports?.reports?.length ?? 0} Power BI reports cover this`;
-        narrative.push(
-          'Power BI stays the system of record. These are the reports that own the figures, with the current headline values read through the API.',
-        );
+        headline = t(lang, 'reports.headline', { count: reports?.reports?.length ?? 0 });
+        narrative.push(t(lang, 'reports.narrative'));
         if (reports?.hiddenCount) {
           bullets.push({
-            text: `${reports.hiddenCount} report(s) hidden for your role`,
+            text: t(lang, 'reports.hidden', { count: reports.hiddenCount }),
             tone: 'warning',
           });
         }
@@ -765,6 +798,41 @@ export const compose = ({ interpretation, facts, access, language, withheld = []
         break;
       }
 
+      case INTENTS.TRIGGER_FLOW: {
+        const proposal = automate?.automation ?? null;
+        const available = automate?.available ?? [];
+        // Localized name per flow; falls back to the catalog label (custom flows).
+        const flowLabel = (flow, fallback) => {
+          const key = `automate.label.${flow}`;
+          return hasKey(key) ? t(lang, key) : fallback;
+        };
+        // Suggest the other flows as phrases that parse back to a trigger.
+        const phraseFor = (flow, fallback) => {
+          const key = `automate.phrase.${flow}`;
+          return hasKey(key) ? t(lang, key) : fallback;
+        };
+        followUpsOverride = available
+          .filter((entry) => !proposal || entry.name !== proposal.flow)
+          .slice(0, 3)
+          .map((entry) => phraseFor(entry.name, entry.label));
+
+        if (!proposal) {
+          headline = t(lang, 'automate.none.headline');
+          narrative.push(
+            t(lang, 'automate.none', {
+              flows: available.map((entry) => flowLabel(entry.name, entry.label)).join(', '),
+            }),
+          );
+          break;
+        }
+        const label = flowLabel(proposal.flow, proposal.label);
+        headline = t(lang, 'automate.headline', { label });
+        narrative.push(t(lang, 'automate.narrative', { label }));
+        narrative.push(t(lang, 'automate.confirm'));
+        if (proposal.mode !== 'live') narrative.push(t(lang, 'automate.simulated'));
+        break;
+      }
+
       case INTENTS.ISSUE_SUMMARY:
       default: {
         headline =
@@ -816,75 +884,77 @@ export const compose = ({ interpretation, facts, access, language, withheld = []
   }
 
   // ---- tables & charts -----------------------------------------------------
+  const title = (key) => t(lang, `table.${key}`);
+  const column = (key) => t(lang, `column.${key}`);
   if (errorCodes?.buckets?.length) {
-    tables.push(bucketTable('by-error-code', 'Issues by error code', 'errorCode', errorCodes.buckets, 'databricks'));
+    tables.push(bucketTable('by-error-code', title('byErrorCode'), 'errorCode', errorCodes.buckets, 'databricks', lang));
     charts.push({
       id: 'chart-error-code',
-      title: 'Issues by error code',
+      title: title('byErrorCode'),
       type: 'bar',
       source: 'databricks',
       points: errorCodes.buckets.map((bucket) => ({ label: bucket.key, value: bucket.count, detail: bucket.label })),
     });
   }
   if (shifts?.buckets?.length) {
-    tables.push(bucketTable('by-shift', 'Issues by shift', 'shiftId', shifts.buckets, 'databricks'));
+    tables.push(bucketTable('by-shift', title('byShift'), 'shiftId', shifts.buckets, 'databricks', lang));
     charts.push({
       id: 'chart-shift',
-      title: 'Issues by shift',
+      title: title('byShift'),
       type: 'bar',
       source: 'databricks',
       points: shifts.buckets.map((bucket) => ({ label: bucket.key, value: bucket.count, detail: bucket.label })),
     });
   }
   if (lines?.buckets?.length) {
-    tables.push(bucketTable('by-line', 'Issues by production line', 'lineId', lines.buckets, 'databricks'));
+    tables.push(bucketTable('by-line', title('byLine'), 'lineId', lines.buckets, 'databricks', lang));
     charts.push({
       id: 'chart-production-line',
-      title: 'Issues by production line',
+      title: title('byLine'),
       type: 'bar',
       source: 'databricks',
       points: lines.buckets.map((bucket) => ({ label: bucket.key, value: bucket.count, detail: bucket.label })),
     });
   }
   if (models?.buckets?.length) {
-    tables.push(bucketTable('by-model', 'Issues by vehicle model', 'modelId', models.buckets, 'databricks'));
+    tables.push(bucketTable('by-model', title('byModel'), 'modelId', models.buckets, 'databricks', lang));
   }
   if (parts?.buckets?.length) {
-    tables.push(bucketTable('by-part', 'Issues by part', 'partId', parts.buckets, 'databricks'));
+    tables.push(bucketTable('by-part', title('byPart'), 'partId', parts.buckets, 'databricks', lang));
   }
   if (checkpoints?.buckets?.length) {
-    tables.push(bucketTable('by-checkpoint', 'Detections by checkpoint', 'checkpointId', checkpoints.buckets, 'databricks'));
+    tables.push(bucketTable('by-checkpoint', title('byCheckpoint'), 'checkpointId', checkpoints.buckets, 'databricks', lang));
   }
   if (costCenters?.buckets?.length) {
-    tables.push(bucketTable('by-cost-center', 'Issues by cost center', 'costCenter', costCenters.buckets, 'databricks'));
+    tables.push(bucketTable('by-cost-center', title('byCostCenter'), 'costCenter', costCenters.buckets, 'databricks', lang));
   }
   if (rework?.buckets?.length) {
-    tables.push(bucketTable('by-rework', 'Rework categories', 'reworkCategoryId', rework.buckets, 'databricks'));
+    tables.push(bucketTable('by-rework', title('byRework'), 'reworkCategoryId', rework.buckets, 'databricks', lang));
   }
   if (trend?.series?.length) {
     charts.push({
       id: 'chart-trend',
-      title: 'Issues per day',
+      title: title('issuesPerDay'),
       type: 'line',
       source: 'databricks',
       points: trend.series.map((point) => ({ label: point.date, value: point.count })),
     });
   }
   if (issues?.rows?.length) {
-    tables.push(issueTable(issues.rows));
+    tables.push(issueTable(issues.rows, lang));
   }
   if (maintenance?.rows?.length) {
     tables.push({
       id: 'maintenance',
-      title: 'Maintenance tickets (Integral Portal)',
+      title: title('maintenance'),
       source: 'integral_portal',
       columns: [
-        { key: 'id', label: 'Ticket', align: 'left' },
-        { key: 'assetName', label: 'Asset', align: 'left' },
-        { key: 'line', label: 'Line', align: 'left' },
-        { key: 'description', label: 'Work', align: 'left' },
-        { key: 'priority', label: 'Priority', align: 'left' },
-        { key: 'status', label: 'Status', align: 'left', format: 'status' },
+        { key: 'id', label: column('ticket'), align: 'left' },
+        { key: 'assetName', label: column('asset'), align: 'left' },
+        { key: 'line', label: column('line'), align: 'left' },
+        { key: 'description', label: column('work'), align: 'left' },
+        { key: 'priority', label: column('priority'), align: 'left' },
+        { key: 'status', label: column('status'), align: 'left', format: 'status' },
       ],
       rows: maintenance.rows.map((row) => ({
         id: row.id,
@@ -899,13 +969,13 @@ export const compose = ({ interpretation, facts, access, language, withheld = []
   if (downtime?.rows?.length) {
     tables.push({
       id: 'downtime',
-      title: 'Downtime events (MQTT)',
+      title: title('downtime'),
       source: 'mqtt',
       columns: [
-        { key: 'line', label: 'Line', align: 'left' },
-        { key: 'topic', label: 'Topic', align: 'left' },
-        { key: 'reason', label: 'Reason', align: 'left' },
-        { key: 'durationMinutes', label: 'Duration', align: 'right', format: 'minutes' },
+        { key: 'line', label: column('line'), align: 'left' },
+        { key: 'topic', label: column('topic'), align: 'left' },
+        { key: 'reason', label: column('reason'), align: 'left' },
+        { key: 'durationMinutes', label: column('duration'), align: 'right', format: 'minutes' },
       ],
       rows: downtime.rows.map((row) => ({
         line: labelFor('lineId', row.lineId),
@@ -918,12 +988,12 @@ export const compose = ({ interpretation, facts, access, language, withheld = []
   if (reports?.reports?.length) {
     tables.push({
       id: 'reports',
-      title: 'Power BI reports',
+      title: title('reports'),
       source: 'powerbi',
       columns: [
-        { key: 'name', label: 'Report', align: 'left' },
-        { key: 'workspace', label: 'Workspace', align: 'left' },
-        { key: 'measures', label: 'Measures', align: 'left' },
+        { key: 'name', label: column('report'), align: 'left' },
+        { key: 'workspace', label: column('workspace'), align: 'left' },
+        { key: 'measures', label: column('measures'), align: 'left' },
       ],
       rows: reports.reports.map((report) => ({
         name: report.name,
@@ -941,7 +1011,7 @@ export const compose = ({ interpretation, facts, access, language, withheld = []
     if (url && !seen.has(url)) {
       seen.add(url);
       links.push({
-        label: `Open ${SOURCE_LABELS[entry.citation.source] ?? entry.citation.source}`,
+        label: t(lang, 'link.open', { source: SOURCE_LABELS[entry.citation.source] ?? entry.citation.source }),
         url,
         system: entry.citation.source,
       });
@@ -961,7 +1031,7 @@ export const compose = ({ interpretation, facts, access, language, withheld = []
     }
   }
 
-  const metrics = kpiTiles(facts);
+  const metrics = kpiTiles(facts, lang);
 
   return {
     headline,
@@ -971,10 +1041,29 @@ export const compose = ({ interpretation, facts, access, language, withheld = []
     tables,
     charts,
     links,
-    followUps: followUpsFor(intent, lang),
+    followUps: followUpsOverride ?? followUpsFor(intent, lang),
     spoken: spokenOverride ?? buildSpoken({ headline, narrative, bullets }, lang),
     spokenOverride,
   };
+};
+
+/**
+ * Translates the redaction reasons the security layer attaches in English.
+ *
+ * The redaction rules live next to the permissions they enforce and know
+ * nothing about languages, so the wording is mapped here from the English
+ * reason text. English answers are returned untouched.
+ */
+export const localizeRedactions = (redactions = [], language = 'en') => {
+  const lang = normalizeLanguage(language);
+  if (lang === 'en') return redactions;
+  const fixed = ['vehicle', 'supplier', 'finance'].map((key) => [t('en', `redaction.${key}`), t(lang, `redaction.${key}`)]);
+  return redactions.map((entry) => {
+    const columns = String(entry.reason ?? '').match(/^(\d+) column\(s\) withheld$/);
+    if (columns) return { ...entry, reason: t(lang, 'redaction.columns', { count: Number(columns[1]) }) };
+    const match = fixed.find(([english]) => english === entry.reason);
+    return match ? { ...entry, reason: match[1] } : entry;
+  });
 };
 
 /**

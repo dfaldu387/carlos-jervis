@@ -2,7 +2,7 @@ import { performance } from 'node:perf_hooks';
 import { INTENTS, parseQuestion, toFilter } from './nlu.js';
 import { CONVERSATIONAL_INTENTS, plan } from './planner.js';
 import { toolById } from './tools/index.js';
-import { buildSpoken, compose } from './synthesizer.js';
+import { buildSpoken, compose, localizeRedactions } from './synthesizer.js';
 import { narrate } from './llm.js';
 import { t } from './i18n.js';
 import { redactAnswer } from '../security/redaction.js';
@@ -186,6 +186,8 @@ export const answerQuestion = async ({ question, access, context = {}, language 
   delete narrated.spokenOverride;
 
   const answer = redactAnswer(narrated, access);
+  // The redaction rules speak English; the reasons follow the answer's language.
+  answer.redactions = localizeRedactions(answer.redactions, lang);
 
   // Withheld tools join the redaction list so the UI has one place to look.
   for (const entry of withheld) {
@@ -257,6 +259,11 @@ const structuredPayloads = (interpretation, facts) => {
 
   const dashboard = fact('dashboard.create')?.dashboard;
   if (dashboard) payload.dashboard = dashboard;
+
+  // The flow proposal (or null when nothing matched); the web renders a Run
+  // button from it that calls POST /api/automate/trigger with confirm: true.
+  const automate = fact('automate.trigger');
+  if (automate) payload.automation = automate.automation;
 
   const measure = fact('powerbi.measure');
   if (measure) {

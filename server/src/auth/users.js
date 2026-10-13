@@ -61,15 +61,22 @@ const DEMO_USERS = [
   },
 ];
 
+/**
+ * Keyed by user id. Local demo users carry a password hash and
+ * authSource 'local'; users signed in through SSO carry no password at all
+ * (authSource 'entra') and are created on first sign-in by upsertExternalUser.
+ */
 const users = new Map();
 
 for (const seed of DEMO_USERS) {
-  users.set(seed.email.toLowerCase(), {
-    id: `usr_${seed.role}`,
+  const id = `usr_${seed.role}`;
+  users.set(id, {
+    id,
     email: seed.email,
     name: seed.name,
     jobTitle: seed.jobTitle,
     role: seed.role,
+    authSource: 'local',
     passwordHash: hashPassword(seed.password),
   });
 }
@@ -84,11 +91,37 @@ export const demoAccounts = () =>
     password: seed.password,
   }));
 
-export const findUserByEmail = (email) =>
-  email ? users.get(String(email).trim().toLowerCase()) ?? null : null;
+export const findUserByEmail = (email) => {
+  const wanted = String(email ?? '').trim().toLowerCase();
+  if (!wanted) return null;
+  return [...users.values()].find((user) => (user.email ?? '').toLowerCase() === wanted) ?? null;
+};
 
-export const findUserById = (id) =>
-  [...users.values()].find((user) => user.id === id) ?? null;
+export const findUserById = (id) => (id ? users.get(id) ?? null : null);
+
+/**
+ * Create or refresh a user that an identity provider vouched for. The record
+ * is keyed by the provider's stable subject (Entra: the `oid` claim), so a
+ * changed display name or group membership updates the same user rather than
+ * creating a second one. No password is stored: the only way into such an
+ * account is through the provider.
+ */
+export const upsertExternalUser = ({ source, subject, email, name, role, jobTitle }) => {
+  if (!source || !subject) return null;
+  const id = `${source}_${String(subject)}`;
+  const existing = users.get(id);
+  const user = {
+    id,
+    email: email ?? existing?.email ?? null,
+    name: (name && String(name).trim()) || existing?.name || email || id,
+    jobTitle: jobTitle ?? existing?.jobTitle ?? (ROLES[role]?.name ?? ''),
+    role: ROLES[role] ? role : existing?.role ?? 'viewer',
+    authSource: source,
+    passwordHash: null,
+  };
+  users.set(id, user);
+  return user;
+};
 
 /** Update the display name and job title of a user (demo in-memory store). */
 export const updateUserProfile = (id, { name, jobTitle } = {}) => {
@@ -117,5 +150,6 @@ export const publicUser = (user) =>
         jobTitle: user.jobTitle,
         role: user.role,
         roleName: ROLES[user.role]?.name ?? user.role,
+        authSource: user.authSource ?? 'local',
       }
     : null;

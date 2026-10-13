@@ -19,13 +19,16 @@ const IDEAS = ['dash.idea.1', 'dash.idea.2', 'dash.idea.3'];
 
 function Widget({ w }: { w: DashboardWidget }) {
   const { t, locale } = useI18n();
+  // A chart with no rows must not render as a blank box; KPI tiles always carry a number.
+  const chartEmpty = w.type !== 'kpi' && (!Array.isArray(w.data) || (w.data as unknown[]).length === 0);
   return (
     <Card className="p-4">
       <div className="mb-2 flex items-start justify-between gap-2">
         <div className="text-sm font-semibold text-foreground">{w.title}</div>
         <span className="truncate text-[11px] text-muted-foreground">{w.source.label}</span>
       </div>
-      {w.type === 'kpi' ? (
+      {chartEmpty ? <div className="flex h-[200px] items-center justify-center text-sm text-muted-foreground">{t('dash.noData')}</div> : null}
+      {!chartEmpty && w.type === 'kpi' ? (
         <div>
           <div className="text-3xl font-bold tabular-nums text-foreground">
             {(w.data as KpiWidgetData).value.toLocaleString(locale)}
@@ -38,9 +41,9 @@ function Widget({ w }: { w: DashboardWidget }) {
           ) : null}
         </div>
       ) : null}
-      {w.type === 'bar' ? <CategoryBars data={(w.data as CategoryWidgetData).map((d) => ({ label: d.name, value: d.value }))} /> : null}
-      {w.type === 'line' ? <TrendArea data={(w.data as SeriesWidgetData).map((d) => ({ date: d.date, count: d.value }))} height={200} /> : null}
-      {w.type === 'pie' ? (
+      {!chartEmpty && w.type === 'bar' ? <CategoryBars data={(w.data as CategoryWidgetData).map((d) => ({ label: d.name, value: d.value }))} /> : null}
+      {!chartEmpty && w.type === 'line' ? <TrendArea data={(w.data as SeriesWidgetData).map((d) => ({ date: d.date, count: d.value }))} height={200} /> : null}
+      {!chartEmpty && w.type === 'pie' ? (
         <div className="h-[220px]">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>

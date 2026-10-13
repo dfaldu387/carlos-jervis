@@ -66,6 +66,15 @@ const en: Record<string, string> = {
   'login.clickToFill': 'click to fill',
   'login.missing': 'Enter your email and password.',
   'login.failed': 'Sign in failed.',
+  'login.sso': 'Sign in with Microsoft',
+  'login.or': 'or sign in with a local account',
+  'login.ssoError': 'Single sign-on did not complete ({code}). Try again or use a local account.',
+  'answer.flow': 'Jervis proposes to run a flow',
+  'answer.flowRun': 'Run it',
+  'answer.flowRunning': 'Running…',
+  'answer.flowDone': 'Flow started',
+  'answer.flowSimulated': 'Flow recorded (simulated: Power Automate is not connected yet)',
+  'answer.flowCancel': 'Not now',
 
   // Help
   'help.title': 'Help & Documentation',
@@ -250,6 +259,7 @@ const en: Record<string, string> = {
   'dash.builtFrom': '{period} · built from "{question}"',
   'dash.delta': '{delta} vs previous period',
   'dash.one': 'Dashboard',
+  'dash.noData': 'No data for this period',
 
   // Settings
   'settings.title': 'Settings',
@@ -339,6 +349,15 @@ const de: Record<string, string> = {
   'login.clickToFill': 'zum Ausfüllen klicken',
   'login.missing': 'Geben Sie E-Mail und Passwort ein.',
   'login.failed': 'Anmeldung fehlgeschlagen.',
+  'login.sso': 'Mit Microsoft anmelden',
+  'login.or': 'oder mit einem lokalen Konto anmelden',
+  'login.ssoError': 'Die Anmeldung über Single Sign-on wurde nicht abgeschlossen ({code}). Versuchen Sie es erneut oder nutzen Sie ein lokales Konto.',
+  'answer.flow': 'Jervis schlägt vor, einen Workflow zu starten',
+  'answer.flowRun': 'Starten',
+  'answer.flowRunning': 'Wird gestartet…',
+  'answer.flowDone': 'Workflow gestartet',
+  'answer.flowSimulated': 'Workflow erfasst (simuliert: Power Automate ist noch nicht verbunden)',
+  'answer.flowCancel': 'Jetzt nicht',
 
   'help.title': 'Hilfe & Dokumentation',
   'help.subtitle': 'Wie Jervis funktioniert und wie Sie schnell Antworten bekommen.',
@@ -519,6 +538,7 @@ const de: Record<string, string> = {
   'dash.builtFrom': '{period} · erstellt aus „{question}“',
   'dash.delta': '{delta} zum Vorzeitraum',
   'dash.one': 'Dashboard',
+  'dash.noData': 'Keine Daten für diesen Zeitraum',
 
   'settings.title': 'Einstellungen',
   'settings.subtitle': 'Präferenzen, KI-Konfiguration und Systeminformationen.',

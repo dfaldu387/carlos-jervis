@@ -60,6 +60,7 @@ export const INTENTS = {
   DRAFT_REPLY: 'draft_reply',
   POWERBI_MEASURE: 'powerbi_measure',
   CREATE_DASHBOARD: 'create_dashboard',
+  TRIGGER_FLOW: 'trigger_flow',
   CAPABILITIES: 'capabilities',
   GREETING: 'greeting',
   UNKNOWN: 'unknown',
@@ -108,6 +109,19 @@ const INTENT_RULES = [
       /\bpower ?bi[\s-]*(wert|zahl|kennzahl)\b/,
       /\b(oee|first pass yield|fpy|rework rate|nacharbeitsquote)\b.*\bpower ?bi\b/,
       /\bpower ?bi\b.*\b(oee|first pass yield|fpy|rework rate|nacharbeitsquote)\b/,
+    ],
+  },
+  {
+    // Start an approved Power Automate flow. A trigger verb paired with a
+    // flow-ish noun; "escalate"/"eskalieren" is strong enough on its own. The
+    // tool only ever proposes - nothing runs without an explicit confirmation.
+    intent: INTENTS.TRIGGER_FLOW,
+    patterns: [
+      /\b(escalat|eskalier)/,
+      // The noun is matched as a substring so German compounds work
+      // ("Wartungsanfrage", "Tagesbericht").
+      /\b(trigger|start|run|launch|send|distribute|initiate|starte|starten|sende|senden|verteile|verteilen|ausl(ö|oe)s|ausf(ü|ue)hr|anstoß|anstoss)\w*\b[\s\S]*(flow|workflow|automation|automatisierung|ablauf|escalation|eskalation|quality|qualit(ä|ae)t|maintenance|wartung|instandhaltung|report|bericht|request|anfrage|visit|besuch|issue|problem|ticket)/,
+      /\b(flow|workflow|automation|automatisierung|ablauf)\b[\s\S]*\b(trigger|start|starten|run|launch|ausl(ö|oe)s|ausf(ü|ue)hr)/,
     ],
   },
   {
@@ -404,6 +418,8 @@ const GERMAN_WORDS = new Set([
   'hallo', 'guten', 'tag', 'abend', 'kann', 'kannst', 'du', 'sie', 'was', 'muss', 'wissen', 'soll',
   'montag', 'dienstag', 'mittwoch', 'donnerstag', 'freitag', 'samstag', 'sonntag', 'um', 'uhr', 'daran',
   'anrufen', 'anzurufen', 'lieferant', 'lieferanten', 'brauchen', 'braucht',
+  'eskaliere', 'eskalieren', 'starte', 'starten', 'auslösen', 'ausführen', 'sende', 'senden', 'verteile',
+  'verteilen', 'ablauf', 'anstoßen', 'tagesbericht', 'wartungsanfrage', 'wartungsbesuch', 'qualitätsproblem',
 ]);
 
 const ENGLISH_WORDS = new Set([
@@ -416,6 +432,7 @@ const ENGLISH_WORDS = new Set([
   'emails', 'email', 'calendar', 'appointments', 'briefing', 'measure', 'need', 'know', 'morning', 'hello',
   'hi', 'hey', 'good', 'can', 'you', 'please', 'give', 'summarize', 'summarise', 'happened', 'much',
   'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday', 'call', 'supplier', 'find',
+  'escalate', 'trigger', 'launch', 'distribute', 'flow', 'workflow', 'report', 'quality',
 ]);
 
 /** German when German function and domain words outnumber the English ones. */
@@ -602,6 +619,21 @@ const calendarDayFor = (text) => {
   return 'today';
 };
 
+/**
+ * Which approved flow a TRIGGER_FLOW question refers to. Keyword mapping onto
+ * the built-in sample flow names; the tool resolves this reference against the
+ * live catalog (fuzzy), so a canonical name here matches a sample flow exactly
+ * and still gives a custom catalog something to match on. null when nothing is
+ * named, which the tool turns into "which flow do you mean?".
+ */
+const FLOW_KEYWORDS = [
+  { ref: 'escalate-quality-issue', pattern: /quality|qualit(ä|ae)t|escalat|eskalier/ },
+  { ref: 'request-maintenance-visit', pattern: /maintenance|wartung|instandhaltung/ },
+  { ref: 'daily-report-distribution', pattern: /report|bericht/ },
+];
+
+const flowRefFor = (text) => FLOW_KEYWORDS.find((entry) => entry.pattern.test(text))?.ref ?? null;
+
 const MEASURE_NOISE = [
   /\b(what|how high|how much|how big|where|tell me|show me|show|give me|get)\b/g,
   /\b(is|was|are|the|our|current|value|of|for|in|from|on|according to|please|me|a|an|my)\b/g,
@@ -688,6 +720,17 @@ export const parseQuestion = (question, options = {}) => {
     else if (timeframe || shiftId) intent = INTENTS.DAILY_SUMMARY;
   }
 
+  // Automation reference and any payload hints already parsed from the
+  // question (an error code, a line, a model), only for a trigger request.
+  const flowRef = intent === INTENTS.TRIGGER_FLOW ? flowRefFor(text) : null;
+  const flowPayload = {};
+  if (intent === INTENTS.TRIGGER_FLOW) {
+    if (errorCodeEntry) flowPayload.errorCode = errorCodeEntry.code;
+    if (line) flowPayload.lineId = line.id;
+    if (model) flowPayload.modelId = model.id;
+    if (shiftId) flowPayload.shiftId = shiftId;
+  }
+
   const entities = {
     timeframe,
     shiftId,
@@ -712,6 +755,8 @@ export const parseQuestion = (question, options = {}) => {
     reminder: intent === INTENTS.CREATE_REMINDER ? parseReminder(original) : null,
     measureQuery: intent === INTENTS.POWERBI_MEASURE ? measureQueryFor(text) : null,
     dashboardTitle: intent === INTENTS.CREATE_DASHBOARD ? dashboardTitleFor(original) : null,
+    flow: flowRef,
+    flowPayload: intent === INTENTS.TRIGGER_FLOW ? flowPayload : null,
   };
 
   const signals = [
@@ -727,6 +772,7 @@ export const parseQuestion = (question, options = {}) => {
     entities.reminder && 'reminder',
     entities.measureQuery && 'measure',
     entities.mailQuery && 'mail query',
+    flowRef && 'flow',
   ].filter(Boolean);
 
   const confidence =

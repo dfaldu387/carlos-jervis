@@ -183,6 +183,33 @@ const probes = {
     };
   },
 
+  /**
+   * Posts a ping to the default flow trigger. A flow built for Jervis answers
+   * `{ "ping": true }` with 200 and does nothing else; a 202 means the flow
+   * accepted the run asynchronously, which also proves the URL is live.
+   */
+  async power_automate(values) {
+    const response = await fetchWithTimeout(values.triggerUrl, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify({ ping: true, source: 'jervis', at: new Date().toISOString() }),
+    });
+    if (response.status === 401 || response.status === 403) {
+      return { ok: false, status: response.status, detail: 'Trigger URL rejected the request; check the signature in the URL.' };
+    }
+    if (response.status === 404) {
+      return { ok: false, status: response.status, detail: 'No flow answers at the trigger URL (404).' };
+    }
+    if (!response.ok) {
+      return { ok: false, status: response.status, detail: `Trigger returned ${response.status}.` };
+    }
+    return {
+      ok: true,
+      status: response.status,
+      detail: response.status === 202 ? 'Flow accepted the ping (202).' : 'Flow answered the ping.',
+    };
+  },
+
   async legacy_chatbot(values) {
     if (!values.url) return { ok: false, detail: 'No application URL configured.' };
     const response = await fetchWithTimeout(values.url, { method: 'GET' });

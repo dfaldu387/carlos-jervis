@@ -126,6 +126,9 @@ const PLANS = {
   [INTENTS.CREATE_DASHBOARD]: [
     { tool: 'dashboard.create', reason: 'Build the dashboard from the production tools and save it' },
   ],
+  [INTENTS.TRIGGER_FLOW]: [
+    { tool: 'automate.trigger', reason: 'Resolve the named flow and propose it for an explicit confirmation' },
+  ],
 };
 
 /** Intents that are answered without touching a data source. */

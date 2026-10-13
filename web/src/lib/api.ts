@@ -50,6 +50,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
 export const api = {
   me: () => request<{ user: User }>('/auth/me'),
+  sso: () => request<{ enabled: boolean; provider: string | null; loginPath: string | null; label: string | null }>('/auth/sso'),
   demoAccounts: () => request<{ accounts: DemoAccount[] }>('/auth/demo-accounts'),
   login: (email: string, password: string) => request<{ user: User }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
   logout: () => request<{ ok: boolean }>('/auth/logout', { method: 'POST' }),
@@ -100,6 +101,13 @@ export const api = {
     request<{ item: TaskItem }>(`/secretary/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
   deleteTask: (id: string) => request<{ ok: boolean }>(`/secretary/tasks/${id}`, { method: 'DELETE' }),
   briefing: (language: Language = 'en') => request<Briefing>(`/secretary/briefing?language=${language}`),
+
+  // Power Automate: run a flow Jervis proposed, with the explicit confirmation the server requires.
+  triggerFlow: (p: { flow: string; payload?: Record<string, unknown> }) =>
+    request<{ ok: boolean; mode: 'simulated' | 'live'; runId?: string }>('/automate/trigger', {
+      method: 'POST',
+      body: JSON.stringify({ ...p, confirm: true }),
+    }),
 
   dashboards: () => request<{ items: SavedDashboardSummary[] }>('/dashboards'),
   createDashboard: (p: { question?: string; title?: string }) => request<{ item: SavedDashboard }>('/dashboards', { method: 'POST', body: JSON.stringify(p) }),

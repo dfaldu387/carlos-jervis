@@ -12,6 +12,7 @@ export interface User {
   roleName: string;
   permissions?: string[];
   via?: string;
+  authSource?: 'local' | 'entra';
 }
 
 export interface Health {
@@ -222,6 +223,7 @@ export interface AskResult {
   briefing?: Briefing;
   dashboard?: SavedDashboard;
   measure?: MeasureResult;
+  automation?: AutomationProposal;
 }
 
 // ---- AI secretary -----------------------------------------------------------
@@ -320,3 +322,12 @@ export interface MeasureResult {
 }
 
 export type Language = 'en' | 'de';
+
+/** A Power Automate flow Jervis proposes to run; nothing runs until the user confirms. */
+export interface AutomationProposal {
+  flow: string;
+  label: string;
+  payload: Record<string, unknown>;
+  status: 'proposed';
+  mode: 'mock' | 'live';
+}

@@ -1,9 +1,13 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowUpRight, CalendarDays, CheckSquare, ExternalLink, LayoutGrid, Mail, Square } from 'lucide-react';
+import { useMutation } from '@tanstack/react-query';
+import { ArrowUpRight, CalendarDays, CheckSquare, ExternalLink, LayoutGrid, Mail, Square, Workflow } from 'lucide-react';
+import { api } from '@/lib/api';
+import { Button } from '@/components/ui/button';
 import { formatTime } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { useI18n, useT } from '@/lib/i18n';
-import type { AskResult } from '@/lib/types';
+import type { AskResult, AutomationProposal } from '@/lib/types';
 
 const severityDot: Record<string, string> = {
   critical: 'bg-destructive',
@@ -20,15 +24,59 @@ function SectionTitle({ icon: Icon, children }: { icon: typeof Mail; children: R
 }
 
 /**
+ * A Power Automate flow Jervis proposes. Nothing runs until the user presses
+ * the button; the server refuses the trigger without that confirmation.
+ */
+function FlowProposal({ proposal }: { proposal: AutomationProposal }) {
+  const t = useT();
+  const [dismissed, setDismissed] = useState(false);
+  const run = useMutation({ mutationFn: () => api.triggerFlow({ flow: proposal.flow, payload: proposal.payload }) });
+  if (dismissed) return null;
+  return (
+    <div className="rounded-lg border border-primary/40 bg-primary/5 p-3">
+      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-primary">
+        <Workflow className="h-3.5 w-3.5" /> {t('answer.flow')}
+      </div>
+      <div className="mt-1 text-sm font-medium text-foreground">{proposal.label}</div>
+      {Object.keys(proposal.payload).length > 0 ? (
+        <dl className="mt-1.5 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+          {Object.entries(proposal.payload).map(([k, v]) => (
+            <div key={k} className="contents">
+              <dt className="font-medium">{k}</dt>
+              <dd className="truncate">{typeof v === 'object' ? JSON.stringify(v) : String(v)}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        {run.isSuccess ? (
+          <span className="text-sm text-success">{run.data.mode === 'simulated' ? t('answer.flowSimulated') : t('answer.flowDone')}</span>
+        ) : (
+          <>
+            <Button size="sm" onClick={() => run.mutate()} disabled={run.isPending}>
+              {run.isPending ? t('answer.flowRunning') : t('answer.flowRun')}
+            </Button>
+            <Button size="sm" variant="secondary" onClick={() => setDismissed(true)}>
+              {t('answer.flowCancel')}
+            </Button>
+          </>
+        )}
+        {run.isError ? <span className="text-sm text-destructive">{(run.error as Error).message}</span> : null}
+      </div>
+    </div>
+  );
+}
+
+/**
  * Structured payloads that the secretary tools attach to an answer: mail,
  * calendar, tasks, a briefing, a created dashboard, or a Power BI measure.
  * Each block links to the page where the user can act on it.
  */
 export function AnswerPayloads({ result }: { result: AskResult }) {
-  const { mail, events, tasks, briefing, dashboard, measure } = result;
+  const { mail, events, tasks, briefing, dashboard, measure, automation } = result;
   const t = useT();
   const { locale } = useI18n();
-  if (!mail && !events && !tasks && !briefing && !dashboard && !measure) return null;
+  if (!mail && !events && !tasks && !briefing && !dashboard && !measure && !automation) return null;
 
   return (
     <div className="mt-4 flex flex-col gap-4">
@@ -137,6 +185,8 @@ export function AnswerPayloads({ result }: { result: AskResult }) {
           ))}
         </div>
       ) : null}
+
+      {automation ? <FlowProposal proposal={automation} /> : null}
 
       {dashboard ? (
         <Link

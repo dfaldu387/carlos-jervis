@@ -68,6 +68,17 @@ const DESCRIPTORS = {
     securityNote:
       'Sending mail always requires an explicit confirmation from the user. Mock mailbox until credentials are supplied and enabled.',
   },
+  power_automate: {
+    kind: 'automation',
+    purpose:
+      'Approved Power Automate flows Jervis can start after an explicit confirmation (escalations, maintenance requests, report distribution), and the inbound endpoint flows use to ask Jervis a question.',
+    access: 'HTTP-trigger URLs of approved flows (outbound); shared-secret header on /api/automate/inbound (inbound)',
+    objects: ['POST {flow trigger url}', 'POST /api/automate/inbound'],
+    capabilities: ['list flows', 'trigger flow (confirmed)', 'answer questions from flows'],
+    openUrl: 'https://make.powerautomate.com/',
+    securityNote:
+      'A flow is only ever started after the user confirms; mock mode simulates the call. Inbound questions run with a fixed engineer-level service identity and a shared secret.',
+  },
   legacy_chatbot: {
     kind: 'application',
     purpose:
@@ -121,6 +132,7 @@ export const SOURCE_LABELS = {
   integral_portal: 'Integral Portal',
   mqtt: 'MQTT Explorer',
   microsoft365: 'Microsoft 365',
+  power_automate: 'Power Automate',
   tasks: 'Jervis tasks',
   dashboards: 'Jervis dashboards',
   catalog: 'Reference data',

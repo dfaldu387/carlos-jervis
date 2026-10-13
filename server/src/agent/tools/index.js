@@ -22,6 +22,7 @@ import {
   tasksDueTool,
 } from './secretary.js';
 import { dashboardCreate, powerbiMeasure } from './dashboards.js';
+import { automateTrigger } from './automate.js';
 
 /**
  * Tool registry.
@@ -68,6 +69,7 @@ export const TOOLS = Object.fromEntries(
     briefingCompose,
     powerbiMeasure,
     dashboardCreate,
+    automateTrigger,
   ].map((tool) => [tool.id, { permission: PERMISSIONS[tool.id] ?? null, ...tool }]),
 );
 

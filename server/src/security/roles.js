@@ -43,6 +43,7 @@ export const ROLES = {
       'calendar:read',
       'tasks:write',
       'dashboards:write',
+      'automate:run',
     ],
   },
   manager: {
@@ -62,6 +63,7 @@ export const ROLES = {
       'calendar:read',
       'tasks:write',
       'dashboards:write',
+      'automate:run',
     ],
   },
 };

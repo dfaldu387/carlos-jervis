@@ -204,7 +204,7 @@ export const INTEGRATIONS = [
         label: 'Application (client) ID',
         env: 'MS365_CLIENT_ID',
         placeholder: '00000000-0000-0000-0000-000000000000',
-        help: 'App registration with Mail.Read, Mail.Send and Calendars.Read application permissions.',
+        help: 'App registration with Mail.ReadWrite, Mail.Send and Calendars.Read application permissions.',
         required: true,
       },
       {
@@ -222,11 +222,55 @@ export const INTEGRATIONS = [
         help: 'The mailbox Jervis reads on behalf of the user. Scoped with an application access policy in Exchange Online.',
         required: true,
       },
+      {
+        key: 'timezone',
+        label: 'Mailbox time zone',
+        env: 'MS365_TIMEZONE',
+        placeholder: 'W. Europe Standard Time',
+        help: 'Optional. Windows or IANA name used for the calendar day window and the Prefer: outlook.timezone header. Default W. Europe Standard Time.',
+      },
     ],
     probe:
       'Acquires an Entra ID token with the app registration, then calls Microsoft Graph GET /users/{mailbox}/mailFolders to confirm the mailbox is reachable.',
     liveBehaviour:
-      'Inbox, calendar and reply calls go to Microsoft Graph for the configured mailbox. Until then a synthetic mailbox answers, and replies are simulated.',
+      'Inbox, calendar and reply calls go to Microsoft Graph for the configured mailbox; a reply really leaves the mailbox after the explicit confirmation. Until then a synthetic mailbox answers, and replies are simulated.',
+  },
+  {
+    id: 'power_automate',
+    name: 'Power Automate',
+    docsUrl: 'https://learn.microsoft.com/power-automate/triggers-introduction',
+    summary:
+      'Approved Power Automate flows Jervis can start (escalations, maintenance requests, report distribution) and the inbound path flows use to ask Jervis a question. Mock mode simulates every trigger; live mode posts to the HTTP trigger of the flow after the user confirms.',
+    fields: [
+      {
+        key: 'triggerUrl',
+        label: 'Default flow trigger URL',
+        env: 'POWER_AUTOMATE_TRIGGER_URL',
+        secret: true,
+        help: 'HTTP-trigger URL ("When an HTTP request is received") of an approved flow. Carries its signature, so it is stored as a secret. Used for every catalog flow without its own url.',
+        required: true,
+      },
+      {
+        key: 'inboundSecret',
+        label: 'Inbound shared secret',
+        env: 'POWER_AUTOMATE_INBOUND_SECRET',
+        secret: true,
+        help: 'Optional. Flows that call POST /api/automate/inbound send it as the x-jervis-automate-secret header. Inbound stays disabled (503) while it is empty.',
+      },
+      {
+        key: 'flowCatalog',
+        label: 'Flow catalog (JSON)',
+        env: 'POWER_AUTOMATE_FLOWS',
+        multiline: true,
+        placeholder:
+          '[{ "name": "escalate-quality-issue", "label": "Escalate a quality issue", "url": "https://prod-xx.westeurope.logic.azure.com/..." }]',
+        help: 'Optional. The flows Jervis may start: name (slug), label, optional url (defaults to the trigger URL above) and description. Without it the three built-in sample flows are listed.',
+      },
+    ],
+    probe:
+      'Live mode only: posts { "ping": true, "source": "jervis" } to the default trigger URL and reports the HTTP status. The flow should answer a ping with 200 without doing any work. In mock mode nothing is called.',
+    liveBehaviour:
+      'A confirmed trigger posts { flow, payload, requestedBy, requestedAt } to the flow URL and the run id comes back from the flow. Until then triggers are simulated and only recorded in the audit trail.',
   },
   {
     id: 'legacy_chatbot',

@@ -1,0 +1,25 @@
+{
+  "name": "jervis-prototype",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Jervis - AI-powered manufacturing / production assistant (prototype)",
+  "type": "module",
+  "workspaces": [
+    "server",
+    "web"
+  ],
+  "scripts": {
+    "dev": "concurrently -n server,web -c blue,magenta \"npm:dev:server\" \"npm:dev:web\"",
+    "dev:server": "npm --workspace server run dev",
+    "dev:web": "npm --workspace web run dev",
+    "start": "npm --workspace server run start",
+    "build": "npm --workspace web run build",
+    "test": "npm --workspace server run test"
+  },
+  "devDependencies": {
+    "concurrently": "9.1.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

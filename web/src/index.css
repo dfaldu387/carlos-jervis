@@ -1,0 +1,115 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 210 40% 98%;
+    --foreground: 217 33% 17%;
+    --card: 0 0% 100%;
+    --card-foreground: 217 33% 17%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 217 33% 17%;
+    --primary: 221 83% 53%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 217 33% 25%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 214 95% 93%;
+    --accent-foreground: 221 83% 40%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 142 71% 40%;
+    --success-foreground: 0 0% 100%;
+    --warning: 32 95% 44%;
+    --warning-foreground: 0 0% 100%;
+    --info: 192 91% 36%;
+    --info-foreground: 0 0% 100%;
+    --border: 214 32% 91%;
+    --input: 214 32% 88%;
+    --ring: 221 83% 53%;
+    --navy: 217 54% 19%;
+    --radius: 0.65rem;
+    --sidebar: 217 54% 19%;
+    --sidebar-foreground: 214 28% 78%;
+    --sidebar-muted: 215 20% 58%;
+    --sidebar-active: 213 94% 68%;
+  }
+
+  /* Dark mode uses the Jervis Core HUD palette: deep navy + cyan. */
+  .dark {
+    --background: 218 66% 8%; /* #081326 */
+    --foreground: 206 100% 96%; /* #eaf6ff */
+    --card: 217 61% 12%; /* #0c1b33 */
+    --card-foreground: 206 100% 96%;
+    --popover: 217 61% 11%;
+    --popover-foreground: 206 100% 96%;
+    --primary: 199 93% 60%; /* #38bdf8 */
+    --primary-foreground: 218 66% 8%;
+    --secondary: 214 52% 17%; /* hover / chips */
+    --secondary-foreground: 208 60% 85%;
+    --muted: 215 48% 15%;
+    --muted-foreground: 208 38% 64%; /* #6d94b8-ish */
+    --accent: 205 58% 22%;
+    --accent-foreground: 199 93% 78%;
+    --destructive: 0 72% 58%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 152 62% 48%;
+    --success-foreground: 218 66% 8%;
+    --warning: 35 92% 60%;
+    --warning-foreground: 218 66% 8%;
+    --info: 199 90% 58%;
+    --info-foreground: 218 66% 8%;
+    --border: 210 46% 21%; /* subtle cyan-navy */
+    --input: 210 46% 24%;
+    --ring: 199 93% 60%;
+    --navy: 218 66% 6%;
+    --sidebar: 217 61% 10%;
+    --sidebar-foreground: 208 42% 76%;
+    --sidebar-muted: 208 32% 56%;
+    --sidebar-active: 199 93% 68%;
+  }
+
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: 'cv11', 'ss01';
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+}
+
+@layer utilities {
+  .skeleton-shimmer {
+    position: relative;
+    overflow: hidden;
+  }
+  .skeleton-shimmer::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background-image: linear-gradient(90deg, transparent, hsl(var(--muted-foreground) / 0.08), transparent);
+    animation: shimmer 1.5s infinite;
+  }
+  @keyframes shimmer {
+    100% {
+      transform: translateX(100%);
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}

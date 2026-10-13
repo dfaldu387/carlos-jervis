@@ -1,0 +1,101 @@
+import { useEffect, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { api, ApiError } from '@/lib/api';
+import { useAuth } from '@/hooks/use-auth';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import type { DemoAccount } from '@/lib/types';
+
+export function LoginPage() {
+  const { signIn } = useAuth();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const emailRef = useRef<HTMLInputElement>(null);
+
+  const demo = useQuery({ queryKey: ['demo-accounts'], queryFn: () => api.demoAccounts(), staleTime: Infinity });
+
+  useEffect(() => emailRef.current?.focus(), []);
+
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!email.trim() || !password) {
+      setError('Enter your email and password.');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const { user } = await api.login(email.trim(), password);
+      signIn(user);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Sign in failed.');
+      setBusy(false);
+    }
+  };
+
+  const fill = (account: DemoAccount) => {
+    setEmail(account.email);
+    setPassword(account.password);
+    setError(null);
+  };
+
+  return (
+    <div className="flex min-h-full items-center justify-center bg-background p-4">
+      <Card className="w-full max-w-md p-7 shadow-md">
+        <div className="mb-5 flex items-center gap-3">
+          <span className="grid h-10 w-10 place-items-center rounded-lg bg-primary text-lg font-bold text-primary-foreground">
+            J
+          </span>
+          <div>
+            <div className="text-lg font-bold leading-tight text-foreground">Jervis AI</div>
+            <div className="text-xs text-muted-foreground">Production Intelligence</div>
+          </div>
+        </div>
+
+        <h1 className="text-xl font-semibold text-foreground">Sign in</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Use your work account to open the assistant.</p>
+
+        <form className="mt-5 flex flex-col gap-4" onSubmit={submit} noValidate>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="email">Email</Label>
+            <Input id="email" ref={emailRef} type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@jervis.local" />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="password">Password</Label>
+            <Input id="password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Your password" />
+          </div>
+          {error ? <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p> : null}
+          <Button type="submit" size="lg" disabled={busy}>
+            {busy ? 'Signing in…' : 'Sign in'}
+          </Button>
+        </form>
+
+        {demo.data?.accounts.length ? (
+          <div className="mt-6 border-t border-border pt-5">
+            <div className="mb-2.5 flex items-center justify-between text-xs">
+              <span className="font-semibold uppercase tracking-wide text-muted-foreground">Demo accounts</span>
+              <span className="text-muted-foreground">click to fill</span>
+            </div>
+            <div className="flex flex-col gap-2">
+              {demo.data.accounts.map((account) => (
+                <button
+                  key={account.email}
+                  type="button"
+                  onClick={() => fill(account)}
+                  className="flex items-center justify-between rounded-md border border-border bg-secondary/40 px-3 py-2 text-left transition-colors hover:bg-secondary"
+                >
+                  <span className="text-sm font-semibold text-foreground">{account.roleName}</span>
+                  <span className="font-mono text-xs text-muted-foreground">{account.email}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </Card>
+    </div>
+  );
+}

@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jervis Prototype Overview</title>
+<meta name="description" content="What was built in the Jervis AI production assistant prototype. Arrow keys or click to move between slides.">
+<style>
+  :root{
+    --bg:#0b1220; --bg2:#111b2e; --card:#16233a; --line:#263750;
+    --fg:#e8eef8; --muted:#9fb0c8; --accent:#4cc9f0; --accent2:#f4a261; --ok:#5ad68d; --warn:#f6c343;
+    --font:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  :root[data-theme="light"]{
+    --bg:#f3f6fb; --bg2:#ffffff; --card:#ffffff; --line:#d9e1ee;
+    --fg:#101828; --muted:#52627a; --accent:#0a6ebd; --accent2:#c2410c; --ok:#15803d; --warn:#b45309;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font-family:var(--font)}
+  body{overflow:hidden}
+  .deck{position:relative;height:100vh;width:100vw}
+  .slide{
+    position:absolute;inset:0;display:none;flex-direction:column;justify-content:center;
+    padding:48px 72px;background:linear-gradient(160deg,var(--bg) 0%,var(--bg2) 100%);
+  }
+  .slide.active{display:flex;animation:fade .35s ease}
+  @keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .kicker{color:var(--accent);text-transform:uppercase;letter-spacing:.14em;font-size:13px;font-weight:600;margin:0 0 12px}
+  h1{font-size:56px;line-height:1.05;margin:0 0 18px;font-weight:800}
+  h2{font-size:38px;line-height:1.1;margin:0 0 24px;font-weight:700}
+  p.lead{font-size:22px;color:var(--muted);max-width:900px;margin:0 0 8px;line-height:1.45}
+  ul{margin:0;padding-left:22px;font-size:21px;line-height:1.55}
+  li{margin:6px 0}
+  li b{color:var(--fg)}
+  .grid{display:grid;gap:18px}
+  .g2{grid-template-columns:repeat(2,1fr)}
+  .g3{grid-template-columns:repeat(3,1fr)}
+  .g4{grid-template-columns:repeat(4,1fr)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px 22px}
+  .card h3{margin:0 0 8px;font-size:19px;color:var(--accent)}
+  .card p,.card li{font-size:16.5px;color:var(--muted);margin:0;line-height:1.5}
+  .card ul{padding-left:18px;font-size:16.5px}
+  .stat{font-size:44px;font-weight:800;line-height:1;margin:0}
+  .stat small{display:block;font-size:14px;font-weight:500;color:var(--muted);margin-top:8px;letter-spacing:.04em;text-transform:uppercase}
+  table{width:100%;border-collapse:collapse;font-size:17px}
+  th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--accent);font-weight:600;font-size:14px;text-transform:uppercase;letter-spacing:.06em}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.92em;background:rgba(127,127,127,.15);padding:2px 6px;border-radius:5px}
+  pre{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 20px;font-size:16px;line-height:1.5;margin:0;overflow:auto}
+  .flow{display:flex;align-items:stretch;gap:12px;margin-top:10px}
+  .flow .step{flex:1;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;position:relative}
+  .flow .step:not(:last-child)::after{content:"\203A";position:absolute;right:-13px;top:50%;transform:translateY(-50%);font-size:30px;color:var(--accent)}
+  .flow .step b{display:block;color:var(--accent);font-size:15px;margin-bottom:6px;text-transform:uppercase;letter-spacing:.06em}
+  .flow .step span{font-size:15.5px;color:var(--muted);line-height:1.45}
+  .pill{display:inline-block;border-radius:999px;padding:3px 10px;font-size:13px;font-weight:600;margin-right:6px}
+  .live{background:rgba(90,214,141,.18);color:var(--ok)}
+  .mock{background:rgba(246,195,67,.18);color:var(--warn)}
+  .plan{background:rgba(159,176,200,.18);color:var(--muted)}
+  .foot{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:space-between;align-items:center;padding:12px 24px;font-size:13px;color:var(--muted);pointer-events:none}
+  .foot *{pointer-events:auto}
+  .foot button{background:var(--card);border:1px solid var(--line);color:var(--fg);border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;margin-left:6px}
+  .bar{position:fixed;top:0;left:0;height:4px;background:var(--accent);transition:width .3s}
+  .title-slide{align-items:flex-start}
+  .title-slide .logo{width:72px;height:72px;border-radius:18px;background:var(--accent);display:grid;place-items:center;color:#061018;font-weight:900;font-size:30px;margin-bottom:28px}
+  .two{display:grid;grid-template-columns:1.1fr .9fr;gap:36px;align-items:start}
+  @media (max-width:900px){
+    .slide{padding:28px 16px;justify-content:flex-start;overflow:auto}
+    h1{font-size:34px}h2{font-size:26px}p.lead{font-size:17px}ul{font-size:16px}
+    .g2,.g3,.g4,.two{grid-template-columns:1fr}
+    .flow{flex-direction:column}.flow .step:not(:last-child)::after{display:none}
+    table{font-size:14px}
+  }
+  @media print{
+    body{overflow:visible}.deck{height:auto}
+    .slide{display:flex !important;position:relative;page-break-after:always;min-height:100vh}
+    .foot,.bar{display:none}
+  }
+</style>
+</head>
+<body>
+<div class="bar" id="bar"></div>
+<div class="deck" id="deck">
+
+<!-- 1 -->
+<section class="slide title-slide">
+  <div class="logo">J</div>
+  <p class="kicker">Prototype review &middot; October 2026</p>
+  <h1>Jervis<br>AI Production Assistant</h1>
+  <p class="lead">Ask a production question in plain language. Get one consolidated answer drawn from the systems the plant already runs, with every number attributed to the system it came from.</p>
+  <p class="lead" style="font-size:17px;margin-top:18px">React front end &middot; Node back end &middot; 78 automated server tests &middot; runs fully offline on synthetic data</p>
+</section>
+
+<!-- 2 -->
+<section class="slide">
+  <p class="kicker">The problem</p>
+  <h2>Production answers live in five systems and nobody has time to visit all of them</h2>
+  <div class="grid g2">
+    <div class="card"><h3>Today</h3><ul>
+      <li>Issue history sits in Databricks, KPIs in Power BI, maintenance in the Integral Portal, machine state in MQTT.</li>
+      <li>A simple question such as "what went wrong on Friday?" means four logins and a spreadsheet.</li>
+      <li>Managers get summaries late, and the numbers rarely agree.</li>
+    </ul></div>
+    <div class="card"><h3>What Jervis does</h3><ul>
+      <li>Understands the question, decides which systems to read, retrieves, combines, answers.</li>
+      <li>Headline, short narrative, KPI tiles, charts, tables, links back to the owning dashboard.</li>
+      <li>Hands-free by voice or typed, with a stage-by-stage trace on every answer.</li>
+    </ul></div>
+  </div>
+</section>
+
+<!-- 3 -->
+<section class="slide">
+  <p class="kicker">By the numbers</p>
+  <h2>What was delivered</h2>
+  <div class="grid g4">
+    <div class="card"><p class="stat">14<small>UI pages</small></p></div>
+    <div class="card"><p class="stat">18<small>question intents</small></p></div>
+    <div class="card"><p class="stat">10<small>retrieval tools</small></p></div>
+    <div class="card"><p class="stat">5<small>system connectors</small></p></div>
+    <div class="card"><p class="stat">20<small>API endpoints</small></p></div>
+    <div class="card"><p class="stat">3<small>roles, server enforced</small></p></div>
+    <div class="card"><p class="stat">78<small>automated tests</small></p></div>
+    <div class="card"><p class="stat">28<small>days of seeded history</small></p></div>
+  </div>
+</section>
+
+<!-- 4 -->
+<section class="slide">
+  <p class="kicker">How an answer is built</p>
+  <h2>Five stages, every one visible in the trace</h2>
+  <div class="flow">
+    <div class="step"><b>1 &middot; Understand</b><span>Intent plus entities: period, shift, line, model, error code, part, checkpoint, cost centre, severity.</span></div>
+    <div class="step"><b>2 &middot; Plan</b><span>An explicit intent-to-retrieval plan. No model improvisation, reviewable per question.</span></div>
+    <div class="step"><b>3 &middot; Retrieve</b><span>Issue history, Power BI measures, Integral Portal tickets, MQTT downtime signals.</span></div>
+    <div class="step"><b>4 &middot; Combine</b><span>Orchestrator merges results and records which system supplied which fact.</span></div>
+    <div class="step"><b>5 &middot; Answer</b><span>Headline, narrative, KPI tiles, charts, tables, deep links. Spoken form for voice.</span></div>
+  </div>
+  <p class="lead" style="margin-top:26px;font-size:18px">Numbers never come from the language model. Optional Claude narration rewrites the wording only, and falls back to deterministic text on any failure.</p>
+</section>
+
+<!-- 5 -->
+<section class="slide">
+  <p class="kicker">Example</p>
+  <h2>"What problems did we have on Friday?"</h2>
+  <div class="two">
+    <pre>You:     "Hey Jervis"
+Jervis:  "Good morning, sir! What would you like to know?"
+You:     "What problems did we have on Friday?"
+Jervis:  "52 problems recorded on Friday 2026-10-02.
+          There were 52 issue events affecting 45
+          vehicles..."
+Jervis:  "Anything else?"
+You:     "Which models were affected?"   (no wake phrase)</pre>
+    <div class="card"><h3>What the screen shows alongside</h3><ul>
+      <li>Headline and one-paragraph narrative</li>
+      <li>KPI tiles, each naming its source system</li>
+      <li>Breakdown charts by line, model, error code</li>
+      <li>Supporting tables and Power BI deep links</li>
+      <li>Sources list and the stage-by-stage trace</li>
+    </ul></div>
+  </div>
+</section>
+
+<!-- 6 -->
+<section class="slide">
+  <p class="kicker">Hands-free voice</p>
+  <h2>A conversation, not a series of commands</h2>
+  <div class="grid g3">
+    <div class="card"><h3>Wake and greet</h3><p>Wake phrase "Hey Jervis", plus the mis-hearings speech recognition actually produces. A time-of-day greeting is spoken before anything is retrieved.</p></div>
+    <div class="card"><h3>Ask in one breath</h3><p>"Hey Jervis, what problems did we have on Friday?" skips the greeting and answers straight away. A button covers noisy lines.</p></div>
+    <div class="card"><h3>Follow-ups</h3><p>No wake phrase needed for 9 seconds after an answer. Context carries across turns.</p></div>
+    <div class="card"><h3>Spoken answers</h3><p>A shorter form of the same facts. "64 h 43 min" becomes "64 hours 43 minutes"; error codes are read digit by digit.</p></div>
+    <div class="card"><h3>Private by design</h3><p>Browser Web Speech API in Chrome or Edge. No audio leaves the machine. Firefox falls back to text.</p></div>
+    <div class="card"><h3>Configurable</h3><p>Wake phrase, greeting, prompts and timings come from one endpoint, so wording changes without a front-end release.</p></div>
+  </div>
+</section>
+
+<!-- 7 -->
+<section class="slide">
+  <p class="kicker">User interface</p>
+  <h2>Enterprise dashboard, three display skins</h2>
+  <div class="grid g2">
+    <div class="card"><h3>Workspace</h3><ul>
+      <li><b>Overview</b> &middot; KPI cards and charts</li>
+      <li><b>Ask Jervis</b> &middot; voice and text chat</li>
+      <li><b>Production Issues</b> &middot; searchable, filterable, paginated table with detail drawer</li>
+      <li><b>Production Analytics</b> &middot; trends and breakdowns</li>
+      <li><b>Shift Reports</b> &middot; day and shift summaries on demand</li>
+    </ul></div>
+    <div class="card"><h3>Data, activity, account</h3><ul>
+      <li><b>Data Sources</b> and <b>Integrations</b> &middot; what is connected, in which mode</li>
+      <li><b>Conversation History</b> &middot; reopen and continue</li>
+      <li><b>Audit Logs</b> &middot; manager only</li>
+      <li><b>Settings</b>, <b>Help</b>, <b>Profile</b>, <b>Sign in</b></li>
+      <li>Skins: <b>Enterprise</b> (light), <b>Command Center</b> (dark HUD), <b>Plain</b> (high contrast)</li>
+    </ul></div>
+  </div>
+  <p class="lead" style="margin-top:18px;font-size:17px">Every data page handles loading, empty, error, permission and demo states. Synthetic data is labelled wherever it appears.</p>
+</section>
+
+<!-- 8 -->
+<section class="slide">
+  <p class="kicker">Command Center</p>
+  <h2>One screen of what is true on the floor right now</h2>
+  <div class="grid g3">
+    <div class="card"><h3>Jervis core</h3><p>Voice conversation at the centre: wake state, live transcript, what Jervis just said.</p></div>
+    <div class="card"><h3>Live intelligence feed</h3><p>Critical codes, vehicles removed, top error code, open maintenance, longest stop, worst line. Every row is clickable and asks Jervis that question.</p></div>
+    <div class="card"><h3>Connected systems</h3><p>The five connectors and whether each is live, mock or planned.</p></div>
+    <div class="card"><h3>Shift timeline</h3><p>Three shifts with issue counts, the running one marked.</p></div>
+    <div class="card"><h3>Production monitor</h3><p>First pass yield, rework share, downtime share as radial meters. 14-day issue trend.</p></div>
+    <div class="card"><h3>One snapshot</h3><p>Served by a single <code>/api/command-center</code> call, refreshed every 60 seconds, so panels never disagree.</p></div>
+  </div>
+</section>
+
+<!-- 9 -->
+<section class="slide">
+  <p class="kicker">Integrations</p>
+  <h2>Configure, test and enable each system</h2>
+  <table>
+    <tr><th>System</th><th>Connection probe</th><th>Live data path</th><th>Mode now</th></tr>
+    <tr><td>Databricks</td><td>Reads the SQL warehouse, then <code>SELECT 1</code> via the Statement Execution API</td><td>Every question answered with SQL against the warehouse</td><td><span class="pill mock">mock</span></td></tr>
+    <tr><td>Power BI</td><td>Acquires an Entra ID token, lists workspace reports</td><td>Report deep links, measures via DAX</td><td><span class="pill mock">mock</span></td></tr>
+    <tr><td>Integral Portal</td><td>Calls the health path with the API key</td><td>Maintenance tickets from the portal</td><td><span class="pill mock">mock</span></td></tr>
+    <tr><td>MQTT Explorer</td><td>TCP/TLS session and a full MQTT CONNECT handshake</td><td>Downtime events from the broker</td><td><span class="pill mock">mock</span></td></tr>
+    <tr><td>Existing chatbot</td><td>Requests the application URL</td><td>Link only, architecture decided in discovery</td><td><span class="pill plan">planned</span></td></tr>
+  </table>
+  <ul style="margin-top:18px;font-size:17px">
+    <li><b>Secrets never leave the server.</b> Only "is set" and the last four characters are shown.</li>
+    <li><b>Live means configured and enabled.</b> Required fields present, and a manager turns it on.</li>
+    <li><b>No false positives.</b> A probe passes only when the response genuinely belongs to that system.</li>
+  </ul>
+</section>
+
+<!-- 10 -->
+<section class="slide">
+  <p class="kicker">Security and access</p>
+  <h2>Real sessions, server-enforced roles, audit on every question</h2>
+  <div class="grid g3">
+    <div class="card"><h3>Authentication</h3><ul>
+      <li>Server-side session, opaque httpOnly cookie</li>
+      <li>scrypt-hashed passwords</li>
+      <li>Login rate-limited per address</li>
+      <li>Deny by default on every protected route and AI tool</li>
+    </ul></div>
+    <div class="card"><h3>Authorisation</h3><ul>
+      <li>Three roles: production manager, quality engineer, line viewer</li>
+      <li>Cost figures, audit trail and integrations gated by permission</li>
+      <li>One user cannot read another's conversation</li>
+    </ul></div>
+    <div class="card"><h3>Data handling</h3><ul>
+      <li>Retrieval-time redaction by role</li>
+      <li>Per-question audit row: role, systems read, redactions</li>
+      <li>No Mercedes data anywhere. Fully synthetic, fixed seed, identical on every boot</li>
+    </ul></div>
+  </div>
+</section>
+
+<!-- 11 -->
+<section class="slide">
+  <p class="kicker">Architecture</p>
+  <h2>One data contract, so the real warehouse is a single adapter</h2>
+  <div class="two">
+    <pre>server/src/
+  agent/        nlu . planner . tools . orchestrator
+                synthesizer . llm . greeting
+  connectors/   Databricks . Power BI . Integral . MQTT
+  data/         repository contract + adapters
+                (memory . postgres . databricks)
+  auth/         users . sessions . cookies
+  security/     roles . redaction . audit
+  integrations/ definitions . store . probe
+  routes/       auth . chat . summaries . system
+                dashboard . issues . analytics
+                conversations . integrations . voice
+web/src/
+  pages/        14 pages
+  components/   voice loop . answer card . charts
+db/schema.sql   target schema (production . maintenance
+                . telemetry . audit)</pre>
+    <div class="card"><h3>Repository contract</h3>
+      <p>Eight methods: <code>meta</code>, <code>listIssues</code>, <code>countIssues</code>, <code>aggregateIssues</code>, <code>vehicleImpact</code>, <code>listMaintenance</code>, <code>listDowntime</code>, <code>dailyTrend</code>. One filter object shared by all of them.</p>
+      <p style="margin-top:10px">Nothing above the contract knows where data comes from. Switch with <code>JERVIS_DATA_SOURCE=memory | postgres | databricks</code>.</p>
+      <p style="margin-top:10px">Stack: React 18, Vite, Tailwind, Radix UI, Recharts, React Query &middot; Express 4, Node 20+, Anthropic SDK.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 12 -->
+<section class="slide">
+  <p class="kicker">Requirements coverage</p>
+  <h2>Built &middot; stood in for &middot; deliberately open</h2>
+  <div class="grid g3">
+    <div class="card"><h3><span class="pill live">built</span></h3><ul>
+      <li>Natural-language understanding and explicit planning (&sect;4.1)</li>
+      <li>All ten example questions (&sect;4.2)</li>
+      <li>Daily and shift summaries over the three shifts (&sect;5)</li>
+      <li>Power BI lookup and deep links (&sect;6)</li>
+      <li>Cross-system workflow (&sect;8, &sect;9)</li>
+      <li>Voice and text (&sect;11)</li>
+      <li>Sign-in, roles, redaction, audit (&sect;12)</li>
+      <li>Source citations on every answer (&sect;17)</li>
+    </ul></div>
+    <div class="card"><h3><span class="pill mock">stood in for</span></h3><ul>
+      <li>Databricks, Power BI, Integral Portal, MQTT run on synthetic data until credentials are supplied and enabled</li>
+      <li>Identity source is a seeded user store; swap for SSO / Entra ID</li>
+      <li>Narration is deterministic by default; Claude rewording is optional</li>
+    </ul></div>
+    <div class="card"><h3><span class="pill plan">open</span></h3><ul>
+      <li>Extend, reuse or wrap the existing chatbot (&sect;10)</li>
+      <li>Final LLM / RAG architecture</li>
+      <li>Database and hosting architecture</li>
+      <li>Authorisation model and real roles</li>
+      <li>Final supported question set</li>
+      <li>Performance, SLA, retention, monitoring</li>
+    </ul></div>
+  </div>
+</section>
+
+<!-- 13 -->
+<section class="slide">
+  <p class="kicker">Run it</p>
+  <h2>Two commands, fully offline</h2>
+  <div class="two">
+    <pre>npm install
+npm run dev
+
+# API  http://localhost:4010
+# UI   http://127.0.0.1:5180
+
+npm test        # 78 server tests
+npm run build   # production build of the UI</pre>
+    <div class="card"><h3>Demo accounts (local, synthetic)</h3>
+      <table>
+        <tr><th>Account</th><th>Role</th></tr>
+        <tr><td><code>manager@jervis.local</code></td><td>Production manager</td></tr>
+        <tr><td><code>engineer@jervis.local</code></td><td>Quality engineer</td></tr>
+        <tr><td><code>viewer@jervis.local</code></td><td>Line viewer</td></tr>
+      </table>
+      <p style="margin-top:12px">Optional: set <code>JERVIS_LLM_PROVIDER=claude</code> and an API key to reword narratives. Set <code>JERVIS_REFERENCE_DATE</code> to pin "today" for a demo.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 14 -->
+<section class="slide">
+  <p class="kicker">Next steps</p>
+  <h2>What the discovery phase should decide</h2>
+  <ul>
+    <li><b>Supply credentials</b> for Databricks and Power BI on the Integrations page. The probes and the live data path are already real code.</li>
+    <li><b>Confirm the MQTT topic pattern</b> and the Integral Portal API shape against the real systems.</li>
+    <li><b>Decide the chatbot question</b>: extend, reuse, integrate or wrap.</li>
+    <li><b>Agree the role model</b> and connect SSO / Entra ID in place of the seeded users.</li>
+    <li><b>Confirm the final question set</b>; the current surface is at <code>/api/suggestions</code>.</li>
+    <li><b>Measure latency</b> per question as integrations land, then set performance targets.</li>
+  </ul>
+</section>
+
+</div>
+
+<div class="foot">
+  <span id="count"></span>
+  <span>
+    <button id="theme">Light / dark</button>
+    <button id="prev">&lsaquo; Prev</button>
+    <button id="next">Next &rsaquo;</button>
+  </span>
+</div>
+
+<script>
+(function(){
+  var slides=[].slice.call(document.querySelectorAll('.slide')),i=0;
+  var bar=document.getElementById('bar'),count=document.getElementById('count');
+  function show(n){
+    i=Math.max(0,Math.min(slides.length-1,n));
+    slides.forEach(function(s,k){s.classList.toggle('active',k===i)});
+    bar.style.width=((i+1)/slides.length*100)+'%';
+    count.textContent='Jervis prototype · slide '+(i+1)+' of '+slides.length;
+    try{location.hash='s'+(i+1)}catch(e){}
+  }
+  document.getElementById('next').onclick=function(){show(i+1)};
+  document.getElementById('prev').onclick=function(){show(i-1)};
+  document.addEventListener('keydown',function(e){
+    if(e.key==='ArrowRight'||e.key===' '||e.key==='PageDown'){show(i+1);e.preventDefault()}
+    if(e.key==='ArrowLeft'||e.key==='PageUp'){show(i-1);e.preventDefault()}
+    if(e.key==='Home')show(0); if(e.key==='End')show(slides.length-1);
+  });
+  document.getElementById('deck').addEventListener('click',function(e){
+    if(e.target.closest('a,button,pre,code'))return;
+    var x=e.clientX/window.innerWidth; show(x<0.25?i-1:i+1);
+  });
+  var root=document.documentElement;
+  var saved=null; try{saved=localStorage.getItem('jervis-deck-theme')}catch(e){}
+  if(saved)root.setAttribute('data-theme',saved);
+  document.getElementById('theme').onclick=function(){
+    var t=root.getAttribute('data-theme')==='light'?'dark':'light';
+    root.setAttribute('data-theme',t);
+    try{localStorage.setItem('jervis-deck-theme',t)}catch(e){}
+  };
+  var m=/s(\d+)/.exec(location.hash); show(m?parseInt(m[1],10)-1:0);
+})();
+</script>
+</body>
+</html>

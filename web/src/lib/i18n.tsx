@@ -260,6 +260,7 @@ const en: Record<string, string> = {
   'dash.delta': '{delta} vs previous period',
   'dash.one': 'Dashboard',
   'dash.noData': 'No data for this period',
+  'dash.vsPrevious': 'vs previous period',
 
   // Settings
   'settings.title': 'Settings',
@@ -539,6 +540,7 @@ const de: Record<string, string> = {
   'dash.delta': '{delta} zum Vorzeitraum',
   'dash.one': 'Dashboard',
   'dash.noData': 'Keine Daten für diesen Zeitraum',
+  'dash.vsPrevious': 'zum Vorzeitraum',
 
   'settings.title': 'Einstellungen',
   'settings.subtitle': 'Präferenzen, KI-Konfiguration und Systeminformationen.',

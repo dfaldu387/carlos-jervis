@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
-import { ArrowLeft, LayoutGrid, Plus, Sparkles, Trash2 } from 'lucide-react';
+import { ArrowLeft, LayoutGrid, Plus, Sparkles, Trash2, TrendingUp, TrendingDown, Minus, BarChart3 } from 'lucide-react';
 import { api } from '@/lib/api';
+import { cn } from '@/lib/utils';
 import { PageHeader } from '@/components/page-header';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,33 +18,68 @@ const PIE_COLORS = ['hsl(var(--primary))', 'hsl(var(--warning))', 'hsl(var(--des
 
 const IDEAS = ['dash.idea.1', 'dash.idea.2', 'dash.idea.3'];
 
-function Widget({ w }: { w: DashboardWidget }) {
+/** A KPI tile. Every dashboard metric is a problem count, so fewer is better:
+ *  a rise reads red, a fall green. */
+function KpiTile({ w }: { w: DashboardWidget }) {
   const { t, locale } = useI18n();
-  // A chart with no rows must not render as a blank box; KPI tiles always carry a number.
-  const chartEmpty = w.type !== 'kpi' && (!Array.isArray(w.data) || (w.data as unknown[]).length === 0);
+  const d = w.data as KpiWidgetData;
+  const delta = d.delta ?? 0;
+  const tone = delta === 0 ? 'muted' : delta > 0 ? 'bad' : 'good';
+  const DeltaIcon = delta === 0 ? Minus : delta > 0 ? TrendingUp : TrendingDown;
   return (
-    <Card className="p-4">
-      <div className="mb-2 flex items-start justify-between gap-2">
-        <div className="text-sm font-semibold text-foreground">{w.title}</div>
+    <Card className="flex h-full flex-col p-4">
+      <div className="flex items-start justify-between gap-2">
+        <div className="text-sm font-medium text-muted-foreground">{w.title}</div>
         <span className="truncate text-[11px] text-muted-foreground">{w.source.label}</span>
       </div>
-      {chartEmpty ? <div className="flex h-[200px] items-center justify-center text-sm text-muted-foreground">{t('dash.noData')}</div> : null}
-      {!chartEmpty && w.type === 'kpi' ? (
-        <div>
-          <div className="text-3xl font-bold tabular-nums text-foreground">
-            {(w.data as KpiWidgetData).value.toLocaleString(locale)}
-            {(w.data as KpiWidgetData).unit ? <span className="ml-1 text-base font-medium text-muted-foreground">{(w.data as KpiWidgetData).unit}</span> : null}
-          </div>
-          {(w.data as KpiWidgetData).delta != null ? (
-            <div className="mt-1 text-xs text-muted-foreground">
-              {t('dash.delta', { delta: `${(w.data as KpiWidgetData).delta! > 0 ? '+' : ''}${(w.data as KpiWidgetData).delta}` })}
-            </div>
-          ) : null}
+      <div className="mt-2 flex items-end gap-1 text-4xl font-bold leading-none tabular-nums text-foreground">
+        {d.value.toLocaleString(locale)}
+        {d.unit ? <span className="pb-0.5 text-lg font-semibold text-muted-foreground">{d.unit}</span> : null}
+      </div>
+      {d.delta != null ? (
+        <div className="mt-3 flex items-center gap-1.5">
+          <span
+            className={cn(
+              'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold',
+              tone === 'bad' && 'bg-destructive/12 text-destructive',
+              tone === 'good' && 'bg-success/12 text-success',
+              tone === 'muted' && 'bg-muted text-muted-foreground',
+            )}
+          >
+            <DeltaIcon className="h-3.5 w-3.5" />
+            {delta > 0 ? '+' : ''}
+            {delta.toLocaleString(locale)}
+          </span>
+          <span className="text-xs text-muted-foreground">{t('dash.vsPrevious')}</span>
         </div>
       ) : null}
-      {!chartEmpty && w.type === 'bar' ? <CategoryBars data={(w.data as CategoryWidgetData).map((d) => ({ label: d.name, value: d.value }))} /> : null}
-      {!chartEmpty && w.type === 'line' ? <TrendArea data={(w.data as SeriesWidgetData).map((d) => ({ date: d.date, count: d.value }))} height={200} /> : null}
-      {!chartEmpty && w.type === 'pie' ? (
+    </Card>
+  );
+}
+
+function ChartTile({ w }: { w: DashboardWidget }) {
+  const { t } = useI18n();
+  const empty = !Array.isArray(w.data) || (w.data as unknown[]).length === 0;
+  return (
+    <Card className="flex h-full flex-col p-4">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className="grid h-7 w-7 flex-none place-items-center rounded-md bg-primary/10 text-primary">
+            <BarChart3 className="h-4 w-4" />
+          </span>
+          <div className="text-sm font-semibold text-foreground">{w.title}</div>
+        </div>
+        <span className="truncate text-[11px] text-muted-foreground">{w.source.label}</span>
+      </div>
+      {empty ? (
+        <div className="flex h-[220px] items-center justify-center text-sm text-muted-foreground">{t('dash.noData')}</div>
+      ) : w.type === 'bar' ? (
+        <div className="flex min-h-[220px] w-full items-center">
+          <CategoryBars data={(w.data as CategoryWidgetData).map((d) => ({ label: d.name, value: d.value }))} />
+        </div>
+      ) : w.type === 'line' ? (
+        <TrendArea data={(w.data as SeriesWidgetData).map((d) => ({ date: d.date, count: d.value }))} height={220} />
+      ) : (
         <div className="h-[220px]">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
@@ -66,9 +102,13 @@ function Widget({ w }: { w: DashboardWidget }) {
             ))}
           </ul>
         </div>
-      ) : null}
+      )}
     </Card>
   );
+}
+
+function Widget({ w }: { w: DashboardWidget }) {
+  return w.type === 'kpi' ? <KpiTile w={w} /> : <ChartTile w={w} />;
 }
 
 export function DashboardsPage() {
@@ -194,15 +234,32 @@ export function DashboardViewPage() {
       </PageHeader>
       {dash.isLoading ? <LoadingRows rows={6} /> : null}
       {dash.isError ? <ErrorState message={(dash.error as Error).message} onRetry={() => void dash.refetch()} /> : null}
-      {dash.data ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {dash.data.widgets.map((w) => (
-            <div key={w.id} className={w.type === 'kpi' ? '' : 'sm:col-span-2 lg:col-span-1'}>
-              <Widget w={w} />
-            </div>
-          ))}
-        </div>
-      ) : null}
+      {dash.data
+        ? (() => {
+            const kpis = dash.data.widgets.filter((w) => w.type === 'kpi');
+            const charts = dash.data.widgets.filter((w) => w.type !== 'kpi');
+            return (
+              <div className="flex flex-col gap-4">
+                {/* KPI tiles share one responsive row, so the key numbers line up. */}
+                {kpis.length > 0 ? (
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                    {kpis.map((w) => (
+                      <Widget key={w.id} w={w} />
+                    ))}
+                  </div>
+                ) : null}
+                {/* Charts: two across on wide screens. */}
+                {charts.length > 0 ? (
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    {charts.map((w) => (
+                      <Widget key={w.id} w={w} />
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            );
+          })()
+        : null}
     </div>
   );
 }

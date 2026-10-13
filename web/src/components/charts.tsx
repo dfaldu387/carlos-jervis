@@ -1,14 +1,4 @@
-import {
-  Area,
-  AreaChart,
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 const AXIS = 'hsl(var(--muted-foreground))';
 const GRID = 'hsl(var(--border))';
@@ -56,14 +46,7 @@ export function CategoryBars({ data, color }: { data: { label: string; value: nu
       <BarChart data={data} layout="vertical" margin={{ top: 0, right: 20, left: 0, bottom: 0 }}>
         <CartesianGrid horizontal={false} stroke={GRID} />
         <XAxis type="number" tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: AXIS }} allowDecimals={false} />
-        <YAxis
-          type="category"
-          dataKey="label"
-          tickLine={false}
-          axisLine={false}
-          tick={{ fontSize: 12, fill: 'hsl(var(--foreground))' }}
-          width={130}
-        />
+        <YAxis type="category" dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: 'hsl(var(--foreground))' }} width={130} />
         <Tooltip content={<ChartTip />} cursor={{ fill: 'hsl(var(--secondary))' }} />
         <Bar dataKey="value" radius={[0, 4, 4, 0]} fill={color ?? 'hsl(var(--primary))'} barSize={16} />
       </BarChart>

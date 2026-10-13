@@ -9,9 +9,11 @@
     "web"
   ],
   "scripts": {
-    "dev": "concurrently -n server,web -c blue,magenta \"npm:dev:server\" \"npm:dev:web\"",
+    "predev": "node scripts/ensure-deps.js && node scripts/free-ports.js",
+    "dev": "concurrently -n server,web -c blue,magenta --kill-others-on-fail \"npm:dev:server\" \"npm:dev:web\"",
     "dev:server": "npm --workspace server run dev",
     "dev:web": "npm --workspace web run dev",
+    "free-ports": "node scripts/free-ports.js",
     "start": "npm --workspace server run start",
     "build": "npm --workspace web run build",
     "test": "npm --workspace server run test"

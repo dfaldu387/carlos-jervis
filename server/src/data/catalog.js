@@ -170,7 +170,7 @@ export const POWERBI_REPORTS = [
     name: 'Production Quality Overview',
     workspace: 'Manufacturing Analytics',
     url: 'https://app.powerbi.com/groups/manufacturing/reports/production-quality',
-    measures: ['issues_total', 'first_pass_yield', 'rework_rate'],
+    measures: ['issues_total', 'first_pass_yield', 'rework_rate', 'oee'],
     dimensions: ['date', 'shift', 'line', 'model'],
   },
   {

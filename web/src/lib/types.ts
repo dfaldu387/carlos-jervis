@@ -12,6 +12,7 @@ export interface User {
   roleName: string;
   permissions?: string[];
   via?: string;
+  authSource?: 'local' | 'entra';
 }
 
 export interface Health {
@@ -214,16 +215,119 @@ export interface AskResult {
   sources?: { source: string; label: string; object: string; url?: string | null; mode?: string }[];
   trace?: { name: string; detail: string; at: string; [k: string]: unknown }[];
   elapsedMs?: number;
+  language?: Language;
+  // Structured payloads from the secretary tools, rendered under the answer.
+  mail?: { items: MailMessage[] };
+  events?: { items: CalendarEvent[]; day?: string };
+  tasks?: { items: TaskItem[] };
+  briefing?: Briefing;
+  dashboard?: SavedDashboard;
+  measure?: MeasureResult;
+  automation?: AutomationProposal;
 }
 
-export interface CommandCenter {
-  status: { overall: string; dataSource: string; narration: string; referenceDate: string; generatedAt: string };
-  core: { id: string; label: string; state: string; detail: string }[];
-  feed: { id: string; tag: string; tone: string; title: string; detail: string; at: string | null; count?: number; question: string }[];
-  agents: { id: string; name: string; state: ConnectorMode; detail: string; capabilities: string[]; openUrl: string | null }[];
-  timeline: { shiftId: string; name: string; window: string; issues: number; vehicles: number; reworkMinutes: number; state: string; question: string }[];
-  gauges: { key: string; label: string; value: number; format: string; goodHigh: boolean; detail?: string }[];
-  today: { issues: number; affected: number; reworked: number; removed: number; reworkMinutes: number; downtimeMinutes: number; openTickets: number };
-  trend: { from: string; to: string; points: { date: string; count: number }[] };
-  quickCommands: { label: string; question: string }[];
+// ---- AI secretary -----------------------------------------------------------
+
+export type MailCategory = 'supplier' | 'maintenance' | 'quality' | 'hr' | 'meeting' | 'it' | 'other';
+
+export interface MailMessage {
+  id: string;
+  from: { name: string; email: string };
+  to: string[];
+  subject: string;
+  receivedAt: string;
+  preview: string;
+  body: string;
+  read: boolean;
+  flagged: boolean;
+  needsReply: boolean;
+  replied: boolean;
+  category: MailCategory;
+  attachments: { name: string; size: number }[];
+}
+
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  startsAt: string;
+  endsAt: string;
+  location: string;
+  attendees: string[];
+  organizer: string;
+  isOnline: boolean;
+}
+
+export interface TaskItem {
+  id: string;
+  title: string;
+  dueAt: string | null;
+  status: 'open' | 'done';
+  source: 'manual' | 'mail' | 'jervis';
+  relatedMailId: string | null;
+  createdAt: string;
+  createdBy: string;
+}
+
+export interface BriefingSection {
+  id: 'calendar' | 'mail' | 'tasks' | 'production' | 'maintenance';
+  title: string;
+  headline: string;
+  items: { label: string; detail: string; href?: string; severity?: 'critical' | 'warning' | 'info' }[];
+}
+
+export interface Briefing {
+  generatedAt: string;
+  date: string;
+  greeting: string;
+  sections: BriefingSection[];
+  spoken: string;
+}
+
+export type KpiWidgetData = { value: number; unit?: string; delta?: number };
+export type CategoryWidgetData = { name: string; value: number }[];
+export type SeriesWidgetData = { date: string; value: number }[];
+
+export interface DashboardWidget {
+  id: string;
+  type: 'kpi' | 'bar' | 'line' | 'pie';
+  title: string;
+  source: { label: string; object: string };
+  data: KpiWidgetData | CategoryWidgetData | SeriesWidgetData;
+}
+
+export interface SavedDashboard {
+  id: string;
+  title: string;
+  question: string;
+  createdAt: string;
+  createdBy: string;
+  period: { from: string; to: string; label: string };
+  widgets: DashboardWidget[];
+}
+
+export interface SavedDashboardSummary {
+  id: string;
+  title: string;
+  question: string;
+  createdAt: string;
+  widgetCount: number;
+}
+
+export interface MeasureResult {
+  name: string;
+  value: number;
+  unit?: string;
+  report?: string;
+  url?: string | null;
+}
+
+export type Language = 'en' | 'de';
+
+/** A Power Automate flow Jervis proposes to run; nothing runs until the user confirms. */
+export interface AutomationProposal {
+  flow: string;
+  label: string;
+  payload: Record<string, unknown>;
+  status: 'proposed';
+  mode: 'mock' | 'live';
 }

@@ -19,11 +19,13 @@ import {
   Menu,
   X,
   ChevronDown,
-  Gauge,
   Search,
   Bell,
   Sun,
   Moon,
+  Mail,
+  CalendarDays,
+  LayoutGrid,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { applyTheme, getStoredTheme } from '@/lib/theme';
@@ -32,6 +34,7 @@ import { GlobalVoice } from '@/components/global-voice';
 import { api } from '@/lib/api';
 import { cn, initialsOf } from '@/lib/utils';
 import { useAuth } from '@/hooks/use-auth';
+import { LANGUAGES, useI18n } from '@/lib/i18n';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -43,6 +46,7 @@ import {
 
 interface NavItem {
   to: string;
+  /** Translation key for the label. */
   label: string;
   icon: typeof LayoutDashboard;
   badge?: number;
@@ -50,59 +54,72 @@ interface NavItem {
 
 const NAV: { group: string; items: NavItem[] }[] = [
   {
-    group: 'Workspace',
+    // The assistant comes first: this is what the client asked Jervis to be.
+    group: 'nav.group.assistant',
     items: [
-      { to: '/', label: 'Overview', icon: LayoutDashboard },
-      { to: '/ask', label: 'Ask Jervis', icon: Sparkles },
-      { to: '/issues', label: 'Production Issues', icon: AlertTriangle },
-      { to: '/analytics', label: 'Production Analytics', icon: BarChart3 },
-      { to: '/reports', label: 'Shift Reports', icon: ClipboardList },
+      { to: '/', label: 'nav.ask', icon: Sparkles },
+      { to: '/today', label: 'nav.today', icon: CalendarDays },
+      { to: '/inbox', label: 'nav.inbox', icon: Mail },
+      { to: '/dashboards', label: 'nav.dashboards', icon: LayoutGrid },
     ],
   },
   {
-    group: 'Data & Systems',
+    group: 'nav.group.reports',
     items: [
-      { to: '/sources', label: 'Data Sources', icon: Database },
-      { to: '/integrations', label: 'Integrations', icon: Plug },
+      { to: '/overview', label: 'nav.overview', icon: LayoutDashboard },
+      { to: '/issues', label: 'nav.issues', icon: AlertTriangle },
+      { to: '/analytics', label: 'nav.analytics', icon: BarChart3 },
+      { to: '/reports', label: 'nav.reports', icon: ClipboardList },
     ],
   },
   {
-    group: 'Activity',
+    group: 'nav.group.data',
     items: [
-      { to: '/history', label: 'Conversation History', icon: History },
-      { to: '/audit', label: 'Audit Logs', icon: ScrollText },
+      { to: '/sources', label: 'nav.sources', icon: Database },
+      { to: '/integrations', label: 'nav.integrations', icon: Plug },
+    ],
+  },
+  {
+    group: 'nav.group.activity',
+    items: [
+      { to: '/history', label: 'nav.history', icon: History },
+      { to: '/audit', label: 'nav.audit', icon: ScrollText },
     ],
   },
 ];
 
-const BOTTOM: NavItem[] = [{ to: '/help', label: 'Help', icon: HelpCircle }];
+const BOTTOM: NavItem[] = [{ to: '/help', label: 'nav.help', icon: HelpCircle }];
 
 const TITLES: Record<string, string> = {
-  '/': 'Overview',
-  '/ask': 'Ask Jervis',
-  '/issues': 'Production Issues',
-  '/analytics': 'Production Analytics',
-  '/reports': 'Shift Reports',
-  '/sources': 'Data Sources',
-  '/integrations': 'Integrations',
-  '/history': 'Conversation History',
-  '/audit': 'Audit Logs',
-  '/settings': 'Settings',
-  '/help': 'Help',
-  '/profile': 'User Profile',
-  '/command': 'Command Center',
+  '/': 'nav.ask',
+  '/today': 'nav.today',
+  '/inbox': 'nav.inbox',
+  '/dashboards': 'nav.dashboards',
+  '/overview': 'nav.overview',
+  '/issues': 'nav.issues',
+  '/analytics': 'nav.analytics',
+  '/reports': 'nav.reports',
+  '/sources': 'nav.sources',
+  '/integrations': 'nav.integrations',
+  '/history': 'nav.history',
+  '/audit': 'nav.audit',
+  '/settings': 'nav.settings',
+  '/help': 'nav.help',
+  '/profile': 'nav.profile',
 };
 
 const COLLAPSE_KEY = 'jervis.sidebar.collapsed';
 
 export function AppShell() {
   const { user, signOut } = useAuth();
+  const { t, language, setLanguage } = useI18n();
   const navigate = useNavigate();
   const location = useLocation();
-  const title = TITLES[location.pathname] ?? 'Jervis AI';
-  const group =
+  const title = t(TITLES[location.pathname] ?? (location.pathname.startsWith('/dashboards/') ? 'nav.dashboards' : 'app.name'));
+  const group = t(
     NAV.find((s) => s.items.some((i) => i.to === location.pathname))?.group ??
-    (['/settings', '/help', '/profile', '/command'].includes(location.pathname) ? 'Account' : 'Workspace');
+      (['/settings', '/help', '/profile'].includes(location.pathname) ? 'nav.group.account' : 'nav.group.assistant'),
+  );
   const [collapsed, setCollapsed] = useState(() => {
     try {
       return localStorage.getItem(COLLAPSE_KEY) === '1';
@@ -153,25 +170,21 @@ export function AppShell() {
         key={item.to}
         to={item.to}
         end={item.to === '/'}
-        title={collapsed ? item.label : undefined}
+        title={collapsed ? t(item.label) : undefined}
         onClick={() => setMobileOpen(false)}
         className={({ isActive }) =>
           cn(
             'group relative flex h-9 items-center gap-3 rounded-md px-3 text-sm font-medium transition-colors',
             collapsed && 'justify-center px-0',
-            isActive
-              ? 'bg-primary/10 text-primary'
-              : 'text-slate-600 hover:bg-secondary hover:text-foreground dark:text-slate-300',
+            isActive ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-secondary hover:text-foreground dark:text-slate-300',
           )
         }
       >
         {({ isActive }) => (
           <>
-            {isActive ? (
-              <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r bg-primary" />
-            ) : null}
+            {isActive ? <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r bg-primary" /> : null}
             <Icon className={cn('h-[18px] w-[18px] flex-none', !isActive && 'text-slate-400')} />
-            {!collapsed ? <span className="flex-1 truncate">{item.label}</span> : null}
+            {!collapsed ? <span className="flex-1 truncate">{t(item.label)}</span> : null}
             {!collapsed && badge ? (
               <span className="grid h-5 min-w-[20px] place-items-center rounded-full bg-destructive px-1.5 text-[11px] font-bold text-destructive-foreground">
                 {badge}
@@ -184,12 +197,7 @@ export function AppShell() {
   };
 
   const sidebar = (
-    <aside
-      className={cn(
-        'relative flex h-full flex-col bg-card transition-[width]',
-        collapsed ? 'w-[72px]' : 'w-[264px]',
-      )}
-    >
+    <aside className={cn('relative flex h-full flex-col bg-card transition-[width]', collapsed ? 'w-[72px]' : 'w-[264px]')}>
       <button
         type="button"
         onClick={toggleCollapsed}
@@ -201,9 +209,7 @@ export function AppShell() {
       </button>
 
       <div className={cn('flex items-center gap-2.5 px-4 py-4', collapsed && 'justify-center pb-2 pt-4')}>
-        <span className="grid h-9 w-9 flex-none place-items-center rounded-lg bg-primary text-base font-bold text-primary-foreground shadow-sm">
-          J
-        </span>
+        <span className="grid h-9 w-9 flex-none place-items-center rounded-lg bg-primary text-base font-bold text-primary-foreground shadow-sm">J</span>
         {!collapsed ? (
           <div className="min-w-0">
             <div className="truncate text-[15px] font-bold leading-tight tracking-tight text-foreground">Jervis AI</div>
@@ -216,9 +222,7 @@ export function AppShell() {
         {NAV.map((section, idx) => (
           <div key={section.group} className={collapsed ? '' : 'mb-1'}>
             {!collapsed ? (
-              <div className="px-3 pb-1.5 pt-3 text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">
-                {section.group}
-              </div>
+              <div className="px-3 pb-1.5 pt-3 text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">{t(section.group)}</div>
             ) : idx > 0 ? (
               <div className="mx-auto my-1.5 h-px w-7 bg-border" />
             ) : null}
@@ -236,10 +240,7 @@ export function AppShell() {
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              className={cn(
-                'flex w-full items-center gap-2.5 rounded-md p-1.5 text-left transition-colors hover:bg-secondary',
-                collapsed && 'justify-center',
-              )}
+              className={cn('flex w-full items-center gap-2.5 rounded-md p-1.5 text-left transition-colors hover:bg-secondary', collapsed && 'justify-center')}
             >
               <span className="grid h-9 w-9 flex-none place-items-center rounded-full bg-primary/15 text-xs font-semibold text-primary">
                 {initialsOf(user?.name)}
@@ -258,19 +259,15 @@ export function AppShell() {
           <DropdownMenuContent align="start" side="top" className="w-[240px]">
             <DropdownMenuLabel>{user?.email}</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => navigate('/command')}>
-              <Gauge /> Command Center
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => navigate('/profile')}>
-              <UserRound /> User profile
+              <UserRound /> {t('nav.profile')}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => navigate('/settings')}>
-              <SettingsIcon /> Settings
+              <SettingsIcon /> {t('nav.settings')}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => void signOut()}>
-              <LogOut /> Sign out
+              <LogOut /> {t('shell.signOut')}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -280,106 +277,118 @@ export function AppShell() {
 
   return (
     <VoiceProvider>
-    <div className="flex h-full bg-background">
-      {/* Desktop sidebar */}
-      <div className="hidden lg:block">{sidebar}</div>
+      <div className="flex h-full bg-background">
+        {/* Desktop sidebar */}
+        <div className="hidden lg:block">{sidebar}</div>
 
-      {/* Mobile sidebar */}
-      {mobileOpen ? (
-        <div className="fixed inset-0 z-50 lg:hidden">
-          <button
-            type="button"
-            aria-label="Close menu"
-            className="absolute inset-0 bg-slate-900/40"
-            onClick={() => setMobileOpen(false)}
-          />
-          <div className="absolute inset-y-0 left-0 w-[264px]">{sidebar}</div>
-        </div>
-      ) : null}
+        {/* Mobile sidebar */}
+        {mobileOpen ? (
+          <div className="fixed inset-0 z-50 lg:hidden">
+            <button type="button" aria-label={t('shell.closeMenu')} className="absolute inset-0 bg-slate-900/40" onClick={() => setMobileOpen(false)} />
+            <div className="absolute inset-y-0 left-0 w-[264px]">{sidebar}</div>
+          </div>
+        ) : null}
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        {/* Mobile top strip (hidden on desktop to keep it clean) */}
-        <div className="flex items-center gap-3 bg-card px-4 py-3 lg:hidden">
-          <button
-            type="button"
-            aria-label="Open menu"
-            onClick={() => setMobileOpen((v) => !v)}
-            className="grid h-9 w-9 place-items-center rounded-md border border-border"
-          >
-            {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </button>
-          <span className="font-bold text-foreground">Jervis AI</span>
-        </div>
-
-        {/* Top nav */}
-        <header className="hidden items-center gap-4 bg-card px-8 py-3 shadow-sm lg:flex">
-          <div className="flex items-center gap-1.5 text-sm">
-            <span className="text-muted-foreground">{group}</span>
-            <span className="text-muted-foreground">/</span>
-            <span className="font-semibold text-foreground">{title}</span>
+        <div className="flex min-w-0 flex-1 flex-col">
+          {/* Mobile top strip (hidden on desktop to keep it clean) */}
+          <div className="flex items-center gap-3 bg-card px-4 py-3 lg:hidden">
+            <button
+              type="button"
+              aria-label={t('shell.openMenu')}
+              onClick={() => setMobileOpen((v) => !v)}
+              className="grid h-9 w-9 place-items-center rounded-md border border-border"
+            >
+              {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </button>
+            <span className="font-bold text-foreground">Jervis AI</span>
           </div>
 
-          <div className="flex-1" />
+          {/* Top nav */}
+          <header className="hidden items-center gap-4 bg-card px-8 py-3 shadow-sm lg:flex">
+            <div className="flex items-center gap-1.5 text-sm">
+              <span className="text-muted-foreground">{group}</span>
+              <span className="text-muted-foreground">/</span>
+              <span className="font-semibold text-foreground">{title}</span>
+            </div>
 
-          <form
-            className="relative w-72"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (!search.trim()) return;
-              navigate(`/issues?q=${encodeURIComponent(search.trim())}`);
-              setSearch('');
-            }}
-          >
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search issues…"
-              className="h-9 rounded-full bg-secondary/60 pl-9"
-            />
-          </form>
+            <div className="flex-1" />
 
-          {statusLabel ? (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1.5 text-xs font-medium text-muted-foreground">
-              <span className={cn('h-1.5 w-1.5 rounded-full', liveCount > 0 ? 'bg-success' : 'bg-warning')} />
-              {statusLabel}
-            </span>
-          ) : null}
+            <form
+              className="relative w-72"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!search.trim()) return;
+                navigate(`/issues?q=${encodeURIComponent(search.trim())}`);
+                setSearch('');
+              }}
+            >
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={t('shell.search')}
+                className="h-9 rounded-full bg-secondary/60 pl-9"
+              />
+            </form>
 
-          <button
-            type="button"
-            onClick={toggleTheme}
-            title={dark ? 'Switch to light mode' : 'Switch to dark mode'}
-            className="grid h-9 w-9 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-          >
-            {dark ? <Sun className="h-[18px] w-[18px]" /> : <Moon className="h-[18px] w-[18px]" />}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => navigate('/issues?severity=critical&status=open')}
-            title="Critical open issues"
-            className="relative grid h-9 w-9 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-          >
-            <Bell className="h-[18px] w-[18px]" />
-            {criticalCount.data ? (
-              <span className="absolute -right-0.5 -top-0.5 grid h-4 min-w-[16px] place-items-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
-                {criticalCount.data}
+            {statusLabel ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1.5 text-xs font-medium text-muted-foreground">
+                <span className={cn('h-1.5 w-1.5 rounded-full', liveCount > 0 ? 'bg-success' : 'bg-warning')} />
+                {statusLabel}
               </span>
             ) : null}
-          </button>
-        </header>
 
-        <main className="flex-1 overflow-y-auto">
-          <div className="mx-auto w-full max-w-[1320px] px-5 py-6 lg:px-8 lg:py-7">
-            <Outlet />
-          </div>
-        </main>
+            <div className="inline-flex overflow-hidden rounded-full border border-border text-xs font-semibold" title={t('shell.language')}>
+              {LANGUAGES.map((l) => (
+                <button
+                  key={l.id}
+                  type="button"
+                  onClick={() => setLanguage(l.id)}
+                  aria-pressed={language === l.id}
+                  className={cn(
+                    'px-2.5 py-1.5 transition-colors',
+                    language === l.id ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-secondary hover:text-foreground',
+                  )}
+                >
+                  {l.id.toUpperCase()}
+                </button>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={toggleTheme}
+              title={dark ? t('shell.light') : t('shell.dark')}
+              className="grid h-9 w-9 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            >
+              {dark ? <Sun className="h-[18px] w-[18px]" /> : <Moon className="h-[18px] w-[18px]" />}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigate('/issues?severity=critical&status=open')}
+              title={t('shell.critical')}
+              className="relative grid h-9 w-9 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            >
+              <Bell className="h-[18px] w-[18px]" />
+              {criticalCount.data ? (
+                <span className="absolute -right-0.5 -top-0.5 grid h-4 min-w-[16px] place-items-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
+                  {criticalCount.data}
+                </span>
+              ) : null}
+            </button>
+          </header>
+
+          <main className="flex-1 overflow-y-auto">
+            <div className="mx-auto w-full max-w-[1320px] px-5 py-6 lg:px-8 lg:py-7">
+              <Outlet />
+            </div>
+          </main>
+        </div>
+
+        <GlobalVoice />
       </div>
-
-      <GlobalVoice />
-    </div>
     </VoiceProvider>
   );
 }

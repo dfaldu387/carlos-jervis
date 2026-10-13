@@ -1,30 +1,76 @@
-# Jervis — AI production assistant (prototype)
+# Jervis — AI secretary for daily plant work (prototype)
 
-A working prototype of the assistant described in *Jervis AI Assistant — Project
-Summary & Client Requirements*: ask a production question in plain language, and
-get one consolidated answer drawn from the systems the plant already runs —
-with every figure attributed to the system it came from.
+Jervis is an AI assistant for a vehicle plant that behaves like a secretary
+rather than a reporting tool: ask it questions in plain language (English or
+German), let it read your mailbox and calendar, keep your tasks, give you a
+daily briefing, pull targeted figures from Power BI and the other connected
+systems, and build simple dashboards on request. Every figure names the system
+it came from, every action is audited, and nothing is sent on your behalf
+without an explicit confirmation.
 
-React front end, Node back end. No database yet: the data layer sits behind one
-contract so the real integration is a single adapter (`docs/DATA-LAYER.md`).
+React + TypeScript front end, Node + Express back end. No database yet: the data
+layer sits behind one contract so the real integration is a single adapter
+(`docs/DATA-LAYER.md`). All connectors, including the mailbox, run in mock mode
+on a synthetic data set until real credentials are added.
 
-## Run it
+## Setup
+
+Requirements: Node.js 20 or newer (24 is what we develop on) and npm 10+. No
+database, Docker, or cloud account is needed for the prototype.
 
 ```bash
+git clone https://github.com/dfaldu387/carlos-jervis.git
+cd carlos-jervis
 npm install
 npm run dev
 ```
 
+`npm run dev` installs missing dependencies on its own, frees ports 4010 and
+5180 if a stale process is holding them, then starts both servers:
+
+- UI — http://127.0.0.1:5180 (open this one)
 - API — http://localhost:4010
-- UI — http://127.0.0.1:5180
+
+Sign in with one of the demo accounts shown on the login screen (also listed
+under *Sign in* below), then try: *"What do I need to know today?"*,
+*"Which emails need a reply?"*, *"Any critical problems this week?"*,
+*"Create a dashboard for Paint Line 2 this week"*, or in German
+*"Was steht heute an?"*. Say **"Hey Jervis"** with the microphone on to use it
+hands-free (Chrome or Edge; other browsers get a hold-to-talk button).
+
+Other commands:
 
 ```bash
-npm test          # 72 server tests
-npm run build     # production build of the UI
+npm test          # server test suite
+npm run build     # production build of the UI into web/dist
+npm run free-ports
 ```
 
-Configuration is optional; copy `server/.env.example` to `server/.env` to
-change anything. The defaults run fully offline on a synthetic data set.
+### Configuration
+
+Everything runs offline by default. To change anything, copy
+`server/.env.example` to `server/.env` and edit it; every variable is
+documented inline there. The ones you are most likely to touch:
+
+| Variable | Purpose | Default |
+| --- | --- | --- |
+| `PORT` | API port | `4010` |
+| `JERVIS_LLM_PROVIDER`, `ANTHROPIC_API_KEY` | `claude` turns on AI-written narration; figures still come from retrieval | deterministic templates |
+| `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID` | Spoken answers with an ElevenLabs voice; the key also enables server-side speech-to-text for browsers without the Web Speech API | browser voice |
+| `DATABRICKS_*`, `POWERBI_*`, `INTEGRAL_PORTAL_*`, `MQTT_*` | Live connectors; each stays in mock mode until its required values are set *and* it is enabled on the Integrations page | mock |
+| `MS365_*` | Microsoft 365 mailbox and calendar (Microsoft Graph); mock mailbox until set | mock |
+| `JERVIS_DATA_SOURCE`, `DATABASE_URL` | `postgres` or `databricks` instead of the bundled synthetic data | `memory` |
+
+Connector values can also be entered at runtime on the Integrations page by a
+manager; saved values win over the environment and are kept in
+`server/data/integrations.json`, which is git-ignored because it may hold
+secrets. Tasks and saved dashboards persist to `server/data/*.json` the same way.
+
+### Using it from another device on the LAN
+
+`deploy/nginx/` holds an nginx config and helper scripts that front both
+servers on port 80, so the app can be opened from a phone or a colleague's
+machine on the same network. See the comments in `deploy/nginx/jervis.conf`.
 
 ## What it does
 
@@ -64,30 +110,32 @@ Twelve pages, grouped in the sidebar:
 Every data page handles loading, empty, error, permission and demo states, and
 synthetic data is labelled wherever it appears.
 
-## Command Center
+## The assistant pages
 
-The landing view: one screen of what is true on the floor right now, with the
-voice core at the middle.
+The home screen is **Ask Jervis**: the voice core on the left, the
+conversation on the right, a chat input underneath. Everything Jervis says,
+typed or spoken, lands in that conversation. The other three assistant pages
+are the secretary's desk:
 
-| Panel | What it actually shows |
+| Page | What it does |
 | --- | --- |
-| Core overview | Understanding, planner, connectors, data layer, narration, voice — each with its real state |
-| Jervis core | The voice conversation: wake state, live transcript, what Jervis just said |
-| Live intelligence feed | Today's critical codes, vehicles removed, top error code, open maintenance, longest stop, worst line — **every row is clickable and asks Jervis that question** |
-| Connected systems | The five connectors and whether each is live, mock or planned |
-| Shift timeline | The three shifts with issue counts; the running one is marked |
-| Quick commands | Daily summary, problems today, rework, downtime, start voice chat |
-| Production monitor | First pass yield, rework share, downtime share as radial meters |
-| Issue trend | 14-day issues-per-day line |
-| Source and model status | Narration provider plus each connector |
+| **Today** | The daily briefing — calendar, mail that needs a reply, open and overdue tasks, what happened on the lines, open maintenance — with a *Read it to me* button. Add, complete and delete tasks here. |
+| **Inbox** | Jervis reads the mailbox: filters for unread, needs-reply and flagged; opens a message; drafts a reply you can edit; sending always asks *"Send this reply to …?"* first. One click turns a mail into a task. |
+| **My Dashboards** | Describe a dashboard in plain language ("Create a dashboard for Paint Line 2 this week") and Jervis assembles KPI tiles, bar, line and pie widgets from the connected sources for that period. Saved dashboards recompute on open. |
 
-It refreshes every 60 seconds and is served by a single `/api/command-center`
-call, so the panels are one snapshot rather than eight that disagree.
+The same things work from the chat: *"what do I need to know today"*,
+*"which emails need a reply"*, *"remind me to call the supplier tomorrow at
+9"*, *"what is the first pass yield in Power BI"*, *"create a dashboard of the
+top error codes this month"* — each answer carries the structured result
+(mail list, calendar, tasks, dashboard link, measure) under the narrative.
 
-**Two display skins**, switched in the sidebar: **Command Center** (the dark
-HUD, default) and **Plain** (the high-contrast light/dark theme). The skin only
-redefines design tokens, so every page works under both — pick Plain if the
-glow gets in the way on a shop-floor screen.
+The production reporting pages (Overview, Issues, Analytics, Shift Reports)
+are still there under **Reports** in the sidebar.
+
+**English and German.** The EN / DE switch in the header changes the UI, the
+language Jervis answers in, the voice it speaks with and the language it
+listens for. German questions work with the same intents ("Was steht heute
+an?", "Welche Fehlercodes gab es diese Woche?", "Erinnere mich morgen um 9 …").
 
 Questions it answers today are listed in the UI and at `/api/suggestions`.
 
@@ -126,10 +174,16 @@ so there is never any doubt about whether the microphone is open.
   what makes it a conversation rather than a series of commands.
 - **Ask without the wake phrase** button, for a noisy line.
 
-Recognition and synthesis are the browser's own (Chrome or Edge; Firefox has no
-speech recognition and falls back to the text box). No audio leaves the machine.
-The wake phrase, greeting, prompts and timings come from `/api/voice/config`, so
-the wording can change without a front-end release.
+Recognition and synthesis are the browser's own in Chrome and Edge, so no audio
+leaves the machine. Browsers without the Web Speech API (Firefox, some locked
+down builds) get a **hold-to-talk** button instead: the recording is sent to
+`POST /api/voice/stt` and transcribed server-side with ElevenLabs when an API
+key is configured; without one the button explains that typing is the way in.
+The wake phrase, greeting, prompts and timings come from `/api/voice/config`,
+in English or German, so the wording can change without a front-end release.
+Slow or mangled renderings of the name ("hey jer vis", "jarviss") still wake
+it: results from the last four seconds are stitched together and matched
+fuzzily.
 
 Spoken answers are a separate, shorter form of the same facts — headline, one
 paragraph, one warning — with shorthand expanded for the ear ("64 h 43 min"
@@ -141,27 +195,32 @@ still shows the full answer with its tables.
 ```
 server/
   src/
-    agent/         nlu · planner · tools · orchestrator · synthesizer · llm
-    connectors/    Databricks · Power BI · Integral Portal · MQTT registry
+    agent/         nlu (EN + DE) · planner · tools · orchestrator · i18n · llm
+    secretary/     mock mailbox + calendar, tasks store, daily briefing
+    dashboards/    dashboards built from questions, persisted to server/data
+    connectors/    Databricks · Power BI · Integral Portal · MQTT · Microsoft 365 registry
     data/          repository contract, adapters, synthetic warehouse
     auth/          users, sessions, login/logout
-    security/      roles, redaction, audit trail
-    routes/        auth · chat · summaries · system · dashboard · issues · analytics · conversations · integrations
-  test/            72 tests across agent, API, auth, data endpoints, voice, command centre, integrations
+    security/      roles + permissions, redaction, audit trail
+    routes/        auth · chat · secretary · dashboards · summaries · system · issues · analytics · conversations · integrations · voice
+  test/            node:test suites across agent, API, auth, secretary, dashboards, German NLU
 web/
   src/
-    pages/         Overview · Ask Jervis · Issues · Analytics · Shift Reports · Data Sources · Integrations · History · Audit · Settings · Help · Profile
-    components/    voice conversation loop, answer card, charts, gauges, tables, KPI tiles
-    styles/        app.css (plain skin) · hud.css (Command Center skin)
+    pages/         Ask Jervis · Today · Inbox · My Dashboards · Overview · Issues · Analytics · Shift Reports · Data Sources · Integrations · History · Audit · Settings · Help · Profile
+    components/    Jervis core + face, answer card with secretary payloads, floating voice button, charts, tables
+    hooks/         use-voice (wake word, continuous recognition, push-to-talk fallback), voice-provider, use-auth
+    lib/           api client, i18n (EN/DE dictionaries), types
+  public/          jervis-face.mp4 (the animated helmet)
+deploy/nginx/      LAN access through nginx
 db/schema.sql      target schema for the database integration
-docs/              data-layer guide, requirements coverage
+docs/              data layer, access model, secretary API, requirements coverage
 ```
 
 ## API
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `POST` | `/api/chat` | Ask a question. Body `{ message, sessionId? }` |
+| `POST` | `/api/chat` | Ask a question. Body `{ message, sessionId?, language? }` |
 | `GET` | `/api/chat/:sessionId` | Replay a conversation |
 | `GET` | `/api/summaries/daily?date=&line=` | Day summary, no question needed |
 | `GET` | `/api/summaries/shift?date=&shift=S1` | Shift summary |
@@ -169,14 +228,27 @@ docs/              data-layer guide, requirements coverage
 | `GET` | `/api/catalog` | Dimensions the assistant understands |
 | `GET` | `/api/sources` | Connector registry with integration mode |
 | `GET` | `/api/suggestions` | The supported question set |
-| `GET` | `/api/voice/config` | Wake phrase, greeting, prompts, timings |
-| `GET` | `/api/command-center` | Every command-centre panel in one snapshot |
+| `GET` | `/api/voice/config?language=` | Wake phrase, greeting, prompts, timings (EN or DE) |
 | `GET` | `/api/roles` | Roles and permissions |
 | `GET` | `/api/integrations` | Connector config with secrets masked (manager only) |
 | `PUT` | `/api/integrations/:id` | Save credentials and the enabled flag (manager only) |
 | `POST` | `/api/integrations/:id/test` | Run the connection probe now (manager only) |
 | `GET` | `/api/audit` | Query and administrative audit trail (manager role only) |
 | `GET` | `/api/health` | Status, active data source, dataset size |
+| `GET` | `/api/secretary/mail?filter=&q=` | Mailbox list with unread / needs-reply counts (mock until Microsoft 365 is configured) |
+| `GET` `PATCH` | `/api/secretary/mail/:id` | One message; mark read / flagged |
+| `POST` | `/api/secretary/mail/:id/draft` | Draft a reply (never sends) |
+| `POST` | `/api/secretary/mail/:id/reply` | Send a reply — refused without `confirm: true`; simulated until the mailbox is live |
+| `GET` | `/api/secretary/calendar?day=` | Calendar entries for a day |
+| `GET` `POST` `PATCH` `DELETE` | `/api/secretary/tasks` | Reminders and tasks |
+| `GET` | `/api/secretary/briefing?language=` | The daily briefing with a spoken version |
+| `GET` `POST` | `/api/dashboards` | Saved dashboards; create one from a question |
+| `GET` `DELETE` | `/api/dashboards/:id` | One dashboard, widgets recomputed on read |
+| `POST` | `/api/voice/stt?language=` | Push-to-talk transcription (needs an ElevenLabs key; 501 otherwise) |
+
+Full payloads for the secretary and dashboard endpoints are in
+`docs/SECRETARY-API.md`; the roles and permissions behind them are in
+`docs/ACCESS-MODEL.md`.
 
 ## Sign in
 
@@ -268,8 +340,16 @@ text is used unchanged. Numbers never come from the model.
 
 ## Status
 
-A prototype for the discovery phase, not a deployment. `docs/REQUIREMENTS-COVERAGE.md`
-sets out, section by section, what is built, what is stood in for with mock
-connectors and synthetic data, and what the requirements document deliberately
-leaves open — the existing-chatbot decision, the authorisation model, hosting,
-performance targets and the final question set.
+Prototype, aligned with the client review of October 2026: an AI secretary
+first, reporting second. Working today against mock data: questions in English
+and German, the daily briefing, mailbox triage with drafted replies and a
+confirmation step, calendar, reminders, targeted Power BI measures, dashboards
+on request, hands-free voice with a push-to-talk fallback, role-based access
+enforced per route and per retrieval tool, and a full audit trail. 110 server
+tests pass.
+
+Not yet live: the Microsoft 365 mailbox (Graph calls are stubbed until a test
+mailbox is agreed), single sign-on, the Power BI / Databricks connectors
+(credentials needed), and the document retrieval layer (`docs/RAG-DESIGN.md`).
+The proposed next steps and the open questions for the client are in
+`docs/SECRETARY-SCOPE.md`.

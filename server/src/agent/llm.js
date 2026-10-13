@@ -28,7 +28,21 @@ Rules:
 - Do not add recommendations that the data does not support.
 - Keep it to two or three short paragraphs, plain sentences, no markdown headings, no bullet characters.
 - Name the system a figure came from when it is not obvious.
-- If the facts are empty, say plainly that nothing was recorded for the period.`;
+- If the facts are empty, say plainly that nothing was recorded for the period.
+- Answer in the language named in the request (English or German). German answers use the formal "Sie".`;
+
+const DRAFT_PROMPT = `You are Jervis, the assistant of a production manager at an automotive assembly plant. You draft email replies on the manager's behalf.
+
+You are given the incoming mail, a deterministic draft and optional instructions from the manager.
+
+Rewrite the draft so it reads naturally and acts on the instructions.
+
+Rules:
+- Use only facts present in the incoming mail, the draft or the instructions. Never invent dates, quantities, names or commitments.
+- Keep the greeting, the sign-off and the tone (formal or friendly) of the draft.
+- Plain text only, short paragraphs, no subject line, no markdown.
+- Write in the language named in the request (English or German). German replies use the formal "Sie".
+- Return the body only.`;
 
 let client = null;
 
@@ -42,13 +56,14 @@ const getClient = () => {
 /**
  * @returns {Promise<{narrative: string[], provider: string, model?: string, usage?: object}>}
  */
-export const narrate = async ({ interpretation, facts, draft }) => {
+export const narrate = async ({ interpretation, facts, draft, language = 'en' }) => {
   if (!llmEnabled()) {
     return { narrative: draft.narrative, provider: 'deterministic' };
   }
 
   const payload = {
     question: interpretation.question,
+    language: language === 'de' ? 'German' : 'English',
     interpretation: {
       intent: interpretation.intent,
       period: interpretation.resolvedTimeframe,
@@ -72,7 +87,7 @@ export const narrate = async ({ interpretation, facts, draft }) => {
       messages: [
         {
           role: 'user',
-          content: `${JSON.stringify(payload, null, 2)}\n\nRewrite the narrative.`,
+          content: `${JSON.stringify(payload, null, 2)}\n\nRewrite the narrative in ${payload.language}.`,
         },
       ],
     });
@@ -109,5 +124,56 @@ export const narrate = async ({ interpretation, facts, draft }) => {
   } catch (error) {
     logger.warn('LLM narration failed; keeping deterministic text', { error: error.message });
     return { narrative: draft.narrative, provider: 'deterministic', fallback: 'error' };
+  }
+};
+
+/**
+ * Optional rewording of a reply draft. Returns null whenever Claude is not
+ * enabled or the call does not produce usable text, so the caller keeps the
+ * deterministic draft.
+ *
+ * @returns {Promise<{ body: string, model: string } | null>}
+ */
+export const draftReplyWithClaude = async ({ mail, draft, instructions = '', language = 'en' }) => {
+  if (!llmEnabled()) return null;
+
+  const payload = {
+    language: language === 'de' ? 'German' : 'English',
+    mail: {
+      from: mail.from,
+      subject: mail.subject,
+      receivedAt: mail.receivedAt,
+      category: mail.category,
+      body: mail.body,
+    },
+    draft: { tone: draft.tone, body: draft.body },
+    instructions: String(instructions ?? '').trim() || null,
+  };
+
+  try {
+    const response = await getClient().messages.create({
+      model: config.llm.model,
+      max_tokens: 1200,
+      system: DRAFT_PROMPT,
+      messages: [
+        {
+          role: 'user',
+          content: `${JSON.stringify(payload, null, 2)}\n\nRewrite the draft body in ${payload.language}.`,
+        },
+      ],
+    });
+    if (response.stop_reason === 'refusal') {
+      logger.warn('LLM draft declined; keeping deterministic draft');
+      return null;
+    }
+    const text = response.content
+      .filter((block) => block.type === 'text')
+      .map((block) => block.text)
+      .join('\n')
+      .trim();
+    return text ? { body: text, model: config.llm.model } : null;
+  } catch (error) {
+    logger.warn('LLM draft failed; keeping deterministic draft', { error: error.message });
+    return null;
   }
 };

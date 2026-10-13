@@ -57,6 +57,28 @@ const DESCRIPTORS = {
     openUrl: EXTERNAL_APPS.find((app) => app.id === 'mqtt-explorer')?.url ?? null,
     securityNote: 'Topic allow-list required before any live subscription.',
   },
+  microsoft365: {
+    kind: 'mail-calendar',
+    purpose:
+      'The mailbox and calendar of the production manager. Jervis summarises the inbox, drafts replies and reads the appointments of the day for the briefing.',
+    access: 'Microsoft Graph with an app registration; mailbox scoped by an Exchange application access policy',
+    objects: ['/users/{mailbox}/mailFolders/inbox/messages', '/users/{mailbox}/calendarView'],
+    capabilities: ['inbox summary', 'mail search', 'reply drafts', 'calendar events', 'send reply (confirmed)'],
+    openUrl: 'https://outlook.office.com/mail/',
+    securityNote:
+      'Sending mail always requires an explicit confirmation from the user. Mock mailbox until credentials are supplied and enabled.',
+  },
+  power_automate: {
+    kind: 'automation',
+    purpose:
+      'Approved Power Automate flows Jervis can start after an explicit confirmation (escalations, maintenance requests, report distribution), and the inbound endpoint flows use to ask Jervis a question.',
+    access: 'HTTP-trigger URLs of approved flows (outbound); shared-secret header on /api/automate/inbound (inbound)',
+    objects: ['POST {flow trigger url}', 'POST /api/automate/inbound'],
+    capabilities: ['list flows', 'trigger flow (confirmed)', 'answer questions from flows'],
+    openUrl: 'https://make.powerautomate.com/',
+    securityNote:
+      'A flow is only ever started after the user confirms; mock mode simulates the call. Inbound questions run with a fixed engineer-level service identity and a shared secret.',
+  },
   legacy_chatbot: {
     kind: 'application',
     purpose:
@@ -109,5 +131,9 @@ export const SOURCE_LABELS = {
   powerbi: 'Power BI',
   integral_portal: 'Integral Portal',
   mqtt: 'MQTT Explorer',
+  microsoft365: 'Microsoft 365',
+  power_automate: 'Power Automate',
+  tasks: 'Jervis tasks',
+  dashboards: 'Jervis dashboards',
   catalog: 'Reference data',
 };

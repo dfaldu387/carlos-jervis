@@ -52,15 +52,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setStatus('anonymous');
   }, []);
 
-  const hasPermission = useCallback(
-    (permission: string) => Boolean(user?.permissions?.includes(permission)),
-    [user],
-  );
+  const hasPermission = useCallback((permission: string) => Boolean(user?.permissions?.includes(permission)), [user]);
 
-  const value = useMemo<AuthContextValue>(
-    () => ({ user, status, signIn, signOut, setUser, hasPermission }),
-    [user, status, signIn, signOut, hasPermission],
-  );
+  const value = useMemo<AuthContextValue>(() => ({ user, status, signIn, signOut, setUser, hasPermission }), [user, status, signIn, signOut, hasPermission]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

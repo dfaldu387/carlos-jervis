@@ -6,3 +6,6 @@ dist/
 
 # Runtime integration settings (may contain secrets)
 server/data/integrations.json
+
+# Vite dev cache
+.vite/

@@ -142,6 +142,47 @@ const probes = {
     return mqttConnect(values);
   },
 
+  async microsoft365(values) {
+    const tokenResponse = await fetchWithTimeout(
+      `https://login.microsoftonline.com/${encodeURIComponent(values.tenantId)}/oauth2/v2.0/token`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'client_credentials',
+          client_id: values.clientId,
+          client_secret: values.clientSecret,
+          scope: 'https://graph.microsoft.com/.default',
+        }),
+      },
+    );
+    const token = await tokenResponse.json().catch(() => ({}));
+    if (!tokenResponse.ok) {
+      return {
+        ok: false,
+        status: tokenResponse.status,
+        detail: token.error_description?.split('\n')[0] ?? 'Token request failed.',
+      };
+    }
+
+    const folders = await fetchWithTimeout(
+      `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(values.mailbox)}/mailFolders`,
+      { headers: { authorization: `Bearer ${token.access_token}` } },
+    );
+    if (folders.status === 401 || folders.status === 403) {
+      return { ok: false, status: folders.status, detail: 'Graph rejected the token for this mailbox.' };
+    }
+    if (!folders.ok) {
+      return { ok: false, status: folders.status, detail: `Mailbox read returned ${folders.status}.` };
+    }
+    const list = await folders.json().catch(() => ({ value: [] }));
+    return {
+      ok: true,
+      status: folders.status,
+      detail: `Authenticated; ${list.value?.length ?? 0} mail folders visible.`,
+    };
+  },
+
   async legacy_chatbot(values) {
     if (!values.url) return { ok: false, detail: 'No application URL configured.' };
     const response = await fetchWithTimeout(values.url, { method: 'GET' });

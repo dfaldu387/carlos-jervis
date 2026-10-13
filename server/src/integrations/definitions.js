@@ -186,6 +186,49 @@ export const INTEGRATIONS = [
       'A persistent subscription records downtime as it happens; downtime questions read those events first.',
   },
   {
+    id: 'microsoft365',
+    name: 'Microsoft 365 (mail and calendar)',
+    docsUrl: 'https://learn.microsoft.com/graph/api/resources/mail-api-overview',
+    summary:
+      'Mailbox and calendar of the signed-in production manager. Jervis reads mail and events through Microsoft Graph and drafts replies; sending always needs an explicit confirmation.',
+    fields: [
+      {
+        key: 'tenantId',
+        label: 'Tenant ID',
+        env: 'MS365_TENANT_ID',
+        placeholder: '00000000-0000-0000-0000-000000000000',
+        required: true,
+      },
+      {
+        key: 'clientId',
+        label: 'Application (client) ID',
+        env: 'MS365_CLIENT_ID',
+        placeholder: '00000000-0000-0000-0000-000000000000',
+        help: 'App registration with Mail.Read, Mail.Send and Calendars.Read application permissions.',
+        required: true,
+      },
+      {
+        key: 'clientSecret',
+        label: 'Client secret',
+        env: 'MS365_CLIENT_SECRET',
+        secret: true,
+        required: true,
+      },
+      {
+        key: 'mailbox',
+        label: 'Mailbox (user principal name)',
+        env: 'MS365_MAILBOX',
+        placeholder: 'production.manager@plant.example',
+        help: 'The mailbox Jervis reads on behalf of the user. Scoped with an application access policy in Exchange Online.',
+        required: true,
+      },
+    ],
+    probe:
+      'Acquires an Entra ID token with the app registration, then calls Microsoft Graph GET /users/{mailbox}/mailFolders to confirm the mailbox is reachable.',
+    liveBehaviour:
+      'Inbox, calendar and reply calls go to Microsoft Graph for the configured mailbox. Until then a synthetic mailbox answers, and replies are simulated.',
+  },
+  {
     id: 'legacy_chatbot',
     name: 'Existing production chatbot',
     docsUrl: null,

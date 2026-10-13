@@ -14,12 +14,29 @@ const planned = 460; // planned vehicles per line per shift, used for yield math
 export const reportsFor = (measure) =>
   POWERBI_REPORTS.filter((report) => report.measures.includes(measure));
 
+/**
+ * How people refer to each measure, in both languages, for the
+ * "what is the OEE in Power BI" style lookup (tools/dashboards.js).
+ */
+export const MEASURE_ALIASES = {
+  issues_total: ['issues', 'issue count', 'number of issues', 'problems', 'probleme', 'anzahl probleme', 'fehler', 'störungen'],
+  vehicles_affected: ['vehicles affected', 'affected vehicles', 'betroffene fahrzeuge', 'fahrzeuge betroffen'],
+  vehicles_reworked: ['vehicles reworked', 'reworked vehicles', 'reworked', 'nachgearbeitete fahrzeuge', 'nacharbeit fahrzeuge'],
+  vehicles_removed: ['removed from line', 'vehicles removed', 'removed', 'aus der linie genommen', 'entnommene fahrzeuge'],
+  rework_minutes: ['rework time', 'rework minutes', 'nacharbeitszeit', 'nacharbeitsminuten'],
+  rework_rate: ['rework rate', 'nacharbeitsquote', 'nacharbeitsrate', 'rework share'],
+  first_pass_yield: ['first pass yield', 'fpy', 'yield', 'first-pass yield', 'erstdurchlaufquote', 'first pass'],
+  oee: ['oee', 'overall equipment effectiveness', 'gesamtanlageneffektivität', 'anlageneffektivität', 'equipment effectiveness'],
+  rework_cost: ['rework cost', 'cost of rework', 'nacharbeitskosten', 'kosten'],
+};
+
 export const fetchMeasures = async (filter = {}, { includeRestricted = false } = {}) => {
   const repository = getRepository();
-  const [issueCount, impact, byRework] = await Promise.all([
+  const [issueCount, impact, byRework, downtime] = await Promise.all([
     repository.countIssues(filter),
     repository.vehicleImpact(filter),
     repository.aggregateIssues(filter, 'reworkCategoryId'),
+    repository.listDowntime({ ...filter, limit: 1000 }),
   ]);
 
   const shiftCount = filter.shiftId ? 1 : 3;
@@ -38,6 +55,16 @@ export const fetchMeasures = async (filter = {}, { includeRestricted = false } =
     producedEstimate > 0
       ? Math.max(0, 1 - impact.affected / producedEstimate)
       : null;
+
+  // OEE the way the overview report estimates it: availability from the
+  // recorded stops against planned run time (8 h per shift), quality from
+  // the first pass yield, performance assumed at 100% because the mock has
+  // no cycle-time feed. Clearly an estimate, labelled as such.
+  const plannedMinutes = 480 * shiftCount * dayCount * lineCount;
+  const downtimeMinutes = downtime.reduce((sum, row) => sum + row.durationMinutes, 0);
+  const availability = plannedMinutes > 0 ? Math.max(0, 1 - downtimeMinutes / plannedMinutes) : null;
+  const oee = availability !== null && firstPassYield !== null ? availability * firstPassYield : null;
+  const reworkRate = producedEstimate > 0 ? impact.reworked / producedEstimate : null;
 
   const measures = [
     {
@@ -79,6 +106,20 @@ export const fetchMeasures = async (filter = {}, { includeRestricted = false } =
       key: 'first_pass_yield',
       label: 'First pass yield (est.)',
       value: firstPassYield,
+      format: 'percent',
+      report: 'pbi-production-quality',
+    },
+    {
+      key: 'rework_rate',
+      label: 'Rework rate (est.)',
+      value: reworkRate,
+      format: 'percent',
+      report: 'pbi-production-quality',
+    },
+    {
+      key: 'oee',
+      label: 'OEE (est.)',
+      value: oee,
       format: 'percent',
       report: 'pbi-production-quality',
     },

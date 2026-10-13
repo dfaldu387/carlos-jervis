@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { answerQuestion } from '../agent/orchestrator.js';
 import { appendTurn, ensureSession, getSession } from '../data/conversations.js';
 import { recordQuery } from '../security/audit.js';
+import { normalizeLanguage } from '../agent/i18n.js';
 
 export const chatRouter = Router();
 
@@ -24,10 +25,14 @@ chatRouter.post('/', async (req, res, next) => {
     const existing = getSession(req.body?.sessionId);
     const owned = existing && existing.meta?.userId === req.access.userId ? existing : null;
     const session = owned ?? ensureSession(undefined, { role: req.access.role, userId: req.access.userId });
+    // An explicit language wins over detection; otherwise the question's own
+    // wording decides and result.language reports what was used.
+    const language = req.body?.language ? normalizeLanguage(req.body.language) : undefined;
     const result = await answerQuestion({
       question,
       access: req.access,
       context: session.context,
+      language,
     });
 
     appendTurn(session, { question, result, role: req.access.role });

@@ -29,6 +29,18 @@ export const GREETING_PARTS = [
   { id: 'night', fromHour: 22, label: 'Good evening' },
 ];
 
+/** The same table in German; ids match so the browser can pick by id. */
+export const GREETING_PARTS_DE = [
+  { id: 'morning', fromHour: 5, label: 'Guten Morgen' },
+  { id: 'afternoon', fromHour: 12, label: 'Guten Tag' },
+  { id: 'evening', fromHour: 17, label: 'Guten Abend' },
+  { id: 'night', fromHour: 22, label: 'Guten Abend' },
+];
+
+export const GREETING_PROMPT_DE = 'Was möchten Sie wissen?';
+
+export const greetingParts = (language = 'en') => (language === 'de' ? GREETING_PARTS_DE : GREETING_PARTS);
+
 export const partOfDay = (hour) => {
   const ordered = [...GREETING_PARTS].sort((a, b) => b.fromHour - a.fromHour);
   // Hours before the first boundary belong to the night block that wrapped
@@ -39,15 +51,16 @@ export const partOfDay = (hour) => {
   );
 };
 
-/** "Good morning, sir!" */
-export const greetingFor = (hour, honorific = HONORIFIC) => {
+/** "Good morning, sir!" - or "Guten Morgen, sir!" when language is 'de'. */
+export const greetingFor = (hour, honorific = HONORIFIC, language = 'en') => {
   const part = partOfDay(hour);
-  return honorific ? `${part.label}, ${honorific}!` : `${part.label}!`;
+  const label = greetingParts(language).find((entry) => entry.id === part.id)?.label ?? part.label;
+  return honorific ? `${label}, ${honorific}!` : `${label}!`;
 };
 
 /** "Good morning, sir! What would you like to know?" */
-export const openingFor = (hour, honorific = HONORIFIC, prompt = GREETING_PROMPT) =>
-  [greetingFor(hour, honorific), prompt].filter(Boolean).join(' ');
+export const openingFor = (hour, honorific = HONORIFIC, prompt = GREETING_PROMPT, language = 'en') =>
+  [greetingFor(hour, honorific, language), prompt].filter(Boolean).join(' ');
 
 /**
  * The greeting follows the real wall clock, never the pinned demo date -

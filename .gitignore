@@ -9,3 +9,7 @@ server/data/integrations.json
 
 # Vite dev cache
 .vite/
+
+# Secretary stores written at runtime (tasks, saved dashboards)
+server/data/tasks.json
+server/data/dashboards.json

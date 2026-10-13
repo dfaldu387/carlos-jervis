@@ -6,10 +6,12 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useT } from '@/lib/i18n';
 import type { DemoAccount } from '@/lib/types';
 
 export function LoginPage() {
   const { signIn } = useAuth();
+  const t = useT();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -23,7 +25,7 @@ export function LoginPage() {
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!email.trim() || !password) {
-      setError('Enter your email and password.');
+      setError(t('login.missing'));
       return;
     }
     setBusy(true);
@@ -32,7 +34,7 @@ export function LoginPage() {
       const { user } = await api.login(email.trim(), password);
       signIn(user);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Sign in failed.');
+      setError(e instanceof ApiError ? e.message : t('login.failed'));
       setBusy(false);
     }
   };
@@ -47,38 +49,51 @@ export function LoginPage() {
     <div className="flex min-h-full items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md p-7 shadow-md">
         <div className="mb-5 flex items-center gap-3">
-          <span className="grid h-10 w-10 place-items-center rounded-lg bg-primary text-lg font-bold text-primary-foreground">
-            J
-          </span>
+          <span className="grid h-10 w-10 place-items-center rounded-lg bg-primary text-lg font-bold text-primary-foreground">J</span>
           <div>
-            <div className="text-lg font-bold leading-tight text-foreground">Jervis AI</div>
-            <div className="text-xs text-muted-foreground">Production Intelligence</div>
+            <div className="text-lg font-bold leading-tight text-foreground">{t('app.name')}</div>
+            <div className="text-xs text-muted-foreground">{t('app.tagline')}</div>
           </div>
         </div>
 
-        <h1 className="text-xl font-semibold text-foreground">Sign in</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Use your work account to open the assistant.</p>
+        <h1 className="text-xl font-semibold text-foreground">{t('login.title')}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{t('login.subtitle')}</p>
 
         <form className="mt-5 flex flex-col gap-4" onSubmit={submit} noValidate>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="email">Email</Label>
-            <Input id="email" ref={emailRef} type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@jervis.local" />
+            <Label htmlFor="email">{t('login.email')}</Label>
+            <Input
+              id="email"
+              ref={emailRef}
+              type="email"
+              autoComplete="username"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@jervis.local"
+            />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="password">Password</Label>
-            <Input id="password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Your password" />
+            <Label htmlFor="password">{t('login.password')}</Label>
+            <Input
+              id="password"
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder={t('login.passwordPlaceholder')}
+            />
           </div>
           {error ? <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p> : null}
           <Button type="submit" size="lg" disabled={busy}>
-            {busy ? 'Signing in…' : 'Sign in'}
+            {busy ? t('login.submitting') : t('login.submit')}
           </Button>
         </form>
 
         {demo.data?.accounts.length ? (
           <div className="mt-6 border-t border-border pt-5">
             <div className="mb-2.5 flex items-center justify-between text-xs">
-              <span className="font-semibold uppercase tracking-wide text-muted-foreground">Demo accounts</span>
-              <span className="text-muted-foreground">click to fill</span>
+              <span className="font-semibold uppercase tracking-wide text-muted-foreground">{t('login.demo')}</span>
+              <span className="text-muted-foreground">{t('login.clickToFill')}</span>
             </div>
             <div className="flex flex-col gap-2">
               {demo.data.accounts.map((account) => (

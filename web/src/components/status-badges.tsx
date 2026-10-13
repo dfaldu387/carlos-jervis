@@ -1,5 +1,6 @@
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { titleCase } from '@/lib/utils';
+import { useT } from '@/lib/i18n';
 import type { IssueStatus, Severity } from '@/lib/types';
 
 const sev: Record<Severity, BadgeProps['variant']> = {
@@ -15,8 +16,10 @@ const st: Record<IssueStatus, BadgeProps['variant']> = {
 };
 
 export function SeverityBadge({ value }: { value: Severity }) {
-  return <Badge variant={sev[value] ?? 'muted'}>{titleCase(value)}</Badge>;
+  const t = useT();
+  return <Badge variant={sev[value] ?? 'muted'}>{sev[value] ? t(`severity.${value}`) : titleCase(value)}</Badge>;
 }
 export function StatusBadge({ value }: { value: IssueStatus }) {
-  return <Badge variant={st[value] ?? 'muted'}>{titleCase(value)}</Badge>;
+  const t = useT();
+  return <Badge variant={st[value] ?? 'muted'}>{st[value] ? t(`status.${value}`) : titleCase(value)}</Badge>;
 }

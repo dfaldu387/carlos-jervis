@@ -2,6 +2,8 @@ import type {
   Analytics,
   AskResult,
   AuditResponse,
+  Briefing,
+  CalendarEvent,
   Conversation,
   Dashboard,
   DemoAccount,
@@ -9,6 +11,11 @@ import type {
   Integration,
   IssueDetail,
   IssuesResponse,
+  Language,
+  MailMessage,
+  SavedDashboard,
+  SavedDashboardSummary,
+  TaskItem,
   User,
 } from './types';
 
@@ -44,8 +51,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 export const api = {
   me: () => request<{ user: User }>('/auth/me'),
   demoAccounts: () => request<{ accounts: DemoAccount[] }>('/auth/demo-accounts'),
-  login: (email: string, password: string) =>
-    request<{ user: User }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+  login: (email: string, password: string) => request<{ user: User }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
   logout: () => request<{ ok: boolean }>('/auth/logout', { method: 'POST' }),
   updateProfile: (payload: { name?: string; jobTitle?: string }) =>
     request<{ user: User }>('/auth/profile', { method: 'PATCH', body: JSON.stringify(payload) }),
@@ -56,9 +62,8 @@ export const api = {
   catalog: () => request<Record<string, unknown>>('/catalog'),
   sources: () => request<{ connectors: import('./types').Connector[]; tools: unknown[]; externalApps: unknown[] }>('/sources'),
   suggestions: () => request<{ groups: { title: string; questions: string[] }[] }>('/suggestions'),
-  voiceConfig: () => request<Record<string, unknown>>('/voice/config'),
+  voiceConfig: (language?: Language) => request<Record<string, unknown>>(`/voice/config${language ? `?language=${language}` : ''}`),
   dashboard: (days = 14) => request<Dashboard>(`/dashboard?days=${days}`),
-  commandCenter: () => request<import('./types').CommandCenter>('/command-center'),
   issues: (query = '') => request<IssuesResponse>(`/issues${query ? `?${query}` : ''}`),
   issue: (id: string) => request<IssueDetail>(`/issues/${id}`),
   analytics: (query = '') => request<Analytics>(`/analytics${query ? `?${query}` : ''}`),
@@ -70,10 +75,42 @@ export const api = {
     request<{ integration: Integration }>(`/integrations/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
   testIntegration: (id: string) =>
     request<{ result: { ok: boolean; mode: string; detail?: string; latencyMs?: number } }>(`/integrations/${id}/test`, { method: 'POST' }),
-  ask: (message: string, sessionId?: string) =>
-    request<AskResult>('/chat', { method: 'POST', body: JSON.stringify({ message, sessionId }) }),
+  ask: (message: string, sessionId?: string, language?: Language) =>
+    request<AskResult>('/chat', { method: 'POST', body: JSON.stringify({ message, sessionId, language }) }),
   dailySummary: (p: { date?: string; line?: string }) =>
     request<AskResult>(`/summaries/daily?${p.date ? `date=${p.date}` : ''}${p.line ? `&line=${p.line}` : ''}`),
-  shiftSummary: (p: { date?: string; shift: string }) =>
-    request<AskResult>(`/summaries/shift?${p.date ? `date=${p.date}&` : ''}shift=${p.shift}`),
+  shiftSummary: (p: { date?: string; shift: string }) => request<AskResult>(`/summaries/shift?${p.date ? `date=${p.date}&` : ''}shift=${p.shift}`),
+
+  // ---- AI secretary ---------------------------------------------------------
+  mail: (p: { filter?: 'all' | 'unread' | 'needsReply' | 'flagged'; q?: string; limit?: number } = {}) =>
+    request<{ items: MailMessage[]; total: number; unread: number; needsReply: number; mode: string }>(`/secretary/mail${qs(p)}`),
+  mailItem: (id: string) => request<{ item: MailMessage }>(`/secretary/mail/${id}`),
+  updateMail: (id: string, patch: { read?: boolean; flagged?: boolean }) =>
+    request<{ item: MailMessage }>(`/secretary/mail/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  draftReply: (id: string, p: { instructions?: string; language?: Language } = {}) =>
+    request<{ draft: { subject: string; body: string; tone: string } }>(`/secretary/mail/${id}/draft`, { method: 'POST', body: JSON.stringify(p) }),
+  // Sending always carries an explicit confirmation; the server refuses without it.
+  sendReply: (id: string, body: string) =>
+    request<{ ok: boolean; mode: 'simulated' | 'sent' }>(`/secretary/mail/${id}/reply`, { method: 'POST', body: JSON.stringify({ body, confirm: true }) }),
+  calendar: (day: string = 'today') => request<{ items: CalendarEvent[]; day: string }>(`/secretary/calendar?day=${encodeURIComponent(day)}`),
+  tasks: (status: 'open' | 'done' | 'all' = 'open') => request<{ items: TaskItem[] }>(`/secretary/tasks?status=${status}`),
+  createTask: (p: { title: string; dueAt?: string | null; relatedMailId?: string | null }) =>
+    request<{ item: TaskItem }>('/secretary/tasks', { method: 'POST', body: JSON.stringify(p) }),
+  updateTask: (id: string, patch: { status?: 'open' | 'done'; title?: string; dueAt?: string | null }) =>
+    request<{ item: TaskItem }>(`/secretary/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  deleteTask: (id: string) => request<{ ok: boolean }>(`/secretary/tasks/${id}`, { method: 'DELETE' }),
+  briefing: (language: Language = 'en') => request<Briefing>(`/secretary/briefing?language=${language}`),
+
+  dashboards: () => request<{ items: SavedDashboardSummary[] }>('/dashboards'),
+  createDashboard: (p: { question?: string; title?: string }) => request<{ item: SavedDashboard }>('/dashboards', { method: 'POST', body: JSON.stringify(p) }),
+  dashboardById: (id: string) => request<{ item: SavedDashboard }>(`/dashboards/${id}`),
+  deleteDashboard: (id: string) => request<{ ok: boolean }>(`/dashboards/${id}`, { method: 'DELETE' }),
 };
+
+/** Builds a query string from defined values only. */
+function qs(params: Record<string, string | number | boolean | undefined>): string {
+  const parts = Object.entries(params)
+    .filter(([, v]) => v !== undefined && v !== '')
+    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`);
+  return parts.length ? `?${parts.join('&')}` : '';
+}

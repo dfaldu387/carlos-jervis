@@ -98,6 +98,34 @@ const PLANS = {
     { tool: 'powerbi.reports', reason: 'Locate the report that owns these figures' },
     { tool: 'powerbi.measures', reason: 'Current values of the headline measures' },
   ],
+
+  // ---- secretary ------------------------------------------------------------
+  [INTENTS.INBOX_SUMMARY]: [
+    { tool: 'mail.search', args: { limit: 8 }, reason: 'List the inbox with the requested filter' },
+    { tool: 'mail.needsReply', args: { limit: 3 }, reason: 'The messages that still need an answer' },
+  ],
+  [INTENTS.MAIL_SEARCH]: [
+    { tool: 'mail.search', args: { limit: 5, mailFilter: 'all' }, reason: 'Search sender, subject and body' },
+  ],
+  [INTENTS.CALENDAR_TODAY]: [
+    { tool: 'calendar.events', reason: 'Appointments for the requested day' },
+    { tool: 'tasks.due', reason: 'Tasks due the same day' },
+  ],
+  [INTENTS.DAILY_BRIEFING]: [
+    { tool: 'briefing.compose', reason: 'Calendar, inbox, tasks, production and maintenance in one pass' },
+  ],
+  [INTENTS.CREATE_REMINDER]: [
+    { tool: 'tasks.create', reason: 'Create the task with the parsed due time' },
+  ],
+  [INTENTS.DRAFT_REPLY]: [
+    { tool: 'mail.draft', reason: 'Find the message and draft the reply (nothing is sent)' },
+  ],
+  [INTENTS.POWERBI_MEASURE]: [
+    { tool: 'powerbi.measure', reason: 'Look up the named measure and its report' },
+  ],
+  [INTENTS.CREATE_DASHBOARD]: [
+    { tool: 'dashboard.create', reason: 'Build the dashboard from the production tools and save it' },
+  ],
 };
 
 /** Intents that are answered without touching a data source. */

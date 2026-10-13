@@ -1,0 +1,621 @@
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import type { Language } from '@/lib/types';
+import { pagesDe, pagesEn } from '@/lib/i18n-pages';
+
+/**
+ * UI language. English and German dictionaries keyed by short ids; `t()`
+ * falls back to English, then to the key itself, so a missing translation is
+ * visible rather than fatal. The choice is a per-viewer preference kept in
+ * localStorage and also sent to the API so Jervis answers in the same language.
+ */
+
+const STORAGE_KEY = 'jervis.language';
+
+export const LANGUAGES: { id: Language; label: string; locale: string; speech: string }[] = [
+  { id: 'en', label: 'English', locale: 'en-GB', speech: 'en-US' },
+  { id: 'de', label: 'Deutsch', locale: 'de-DE', speech: 'de-DE' },
+];
+
+const en: Record<string, string> = {
+  // App / shell
+  'app.starting': 'Starting Jervis…',
+  'app.name': 'Jervis AI',
+  'app.tagline': 'Production Intelligence',
+  'nav.group.assistant': 'Assistant',
+  'nav.group.reports': 'Reports',
+  'nav.group.data': 'Data & Systems',
+  'nav.group.activity': 'Activity',
+  'nav.group.account': 'Account',
+  'nav.ask': 'Ask Jervis',
+  'nav.today': 'Today',
+  'nav.inbox': 'Inbox',
+  'nav.dashboards': 'My Dashboards',
+  'nav.overview': 'Overview',
+  'nav.issues': 'Production Issues',
+  'nav.analytics': 'Production Analytics',
+  'nav.reports': 'Shift Reports',
+  'nav.sources': 'Data Sources',
+  'nav.integrations': 'Integrations',
+  'nav.history': 'Conversation History',
+  'nav.audit': 'Audit Logs',
+  'nav.settings': 'Settings',
+  'nav.help': 'Help',
+  'nav.profile': 'User Profile',
+  'shell.search': 'Search issues…',
+  'shell.collapse': 'Collapse sidebar',
+  'shell.expand': 'Expand sidebar',
+  'shell.openMenu': 'Open menu',
+  'shell.closeMenu': 'Close menu',
+  'shell.light': 'Switch to light mode',
+  'shell.dark': 'Switch to dark mode',
+  'shell.critical': 'Critical open issues',
+  'shell.signOut': 'Sign out',
+  'shell.language': 'Language',
+  'shell.demo': 'Demo mode',
+  'shell.live': '{count} live',
+
+  // Login
+  'login.title': 'Sign in',
+  'login.subtitle': 'Use your work account to open the assistant.',
+  'login.email': 'Email',
+  'login.password': 'Password',
+  'login.passwordPlaceholder': 'Your password',
+  'login.submit': 'Sign in',
+  'login.submitting': 'Signing in…',
+  'login.demo': 'Demo accounts',
+  'login.clickToFill': 'click to fill',
+  'login.missing': 'Enter your email and password.',
+  'login.failed': 'Sign in failed.',
+
+  // Help
+  'help.title': 'Help & Documentation',
+  'help.subtitle': 'How Jervis works and how to get answers quickly.',
+  'help.what': 'What Jervis is',
+  'help.whatBody':
+    'Jervis is an AI secretary for daily plant work. It sits on top of the systems you already run, answers questions in plain language with every figure attributed to its source, reads your mailbox, keeps your tasks and builds simple dashboards on request. It does not replace those systems; it reads from them and points you back to them.',
+  'help.ask': 'Ask Jervis',
+  'help.ask.body': 'Type or say a question. Jervis chooses which approved systems to read, retrieves the data, and answers with the sources named.',
+  'help.today': 'Today',
+  'help.today.body': 'Your daily briefing: calendar, mail that needs a reply, open tasks, and what happened on the lines, with a spoken version.',
+  'help.inbox': 'Inbox',
+  'help.inbox.body': 'Jervis reads the mailbox, flags what needs a reply and drafts answers. Sending always asks for your confirmation.',
+  'help.dashboards': 'My Dashboards',
+  'help.dashboards.body': 'Describe a dashboard in plain language and Jervis assembles it from the connected sources, filtered by the period you asked for.',
+  'help.issues': 'Production Issues',
+  'help.issues.body': 'Search, filter and sort every recorded issue. Click a row for the detail drawer with the timeline, related findings and sources.',
+  'help.analytics': 'Production Analytics',
+  'help.analytics.body': 'Trends and breakdowns by severity, area and error code over a date range. Every series is a real aggregate.',
+  'help.reports': 'Shift Reports',
+  'help.reports.body': 'Generate a shift or full-day summary. Figures are retrieved facts; the narrative is marked deterministic or AI-generated.',
+  'help.integrations': 'Data Sources & Integrations',
+  'help.integrations.body':
+    'See what is connected and in which mode. Managers configure credentials and test connections. Nothing reads live data until enabled.',
+  'help.audit': 'Audit Logs',
+  'help.audit.body': 'Managers review every question asked, every mail action and every administrative change, filtered by user, action and outcome.',
+  'help.limits': 'Demo limitations',
+  'help.limit.1': 'All data is synthetic and generated from a fixed seed. No client data is used.',
+  'help.limit.2': 'Connectors, including the mailbox, run in demo mode until real credentials are added on the Integrations page.',
+  'help.limit.3': 'The assistant never claims a live source unless that integration has been configured and enabled.',
+
+  // Ask page
+  'ask.title': 'What would you like to understand about production?',
+  'ask.subtitle':
+    'Ask a question in plain English. Jervis searches the approved sources available to you and explains what it finds, naming the system behind every figure.',
+  'ask.placeholder': 'Ask Jervis about production issues, events, or trends…',
+  'ask.hint': 'Enter to send · Shift+Enter for a new line',
+  'ask.dictate': 'Dictate',
+  'ask.retry': 'Retry',
+  'ask.failed': 'Could not answer: {message}',
+  'ask.stage.1': 'Understanding your question…',
+  'ask.stage.2': 'Checking available production data…',
+  'ask.stage.3': 'Preparing your answer…',
+  'ask.ex.briefing': 'Briefing',
+  'ask.ex.briefing.q': 'What do I need to know today?',
+  'ask.ex.inbox': 'Inbox',
+  'ask.ex.inbox.q': 'Which emails need a reply?',
+  'ask.ex.investigate': 'Investigate',
+  'ask.ex.investigate.q': 'Any critical problems this week?',
+  'ask.ex.dashboard': 'Dashboard',
+  'ask.ex.dashboard.q': 'Create a dashboard for Paint Line 2 this week',
+
+  // Core / voice
+  'core.label': 'Jervis Core',
+  'core.off.title': 'Voice mode is off',
+  'core.off.hint': 'Tap the core to start, or say “Hey Jervis”',
+  'core.awake.title': 'Awake — say “Hey Jervis”',
+  'core.awake.hint': 'Listening for the wake phrase',
+  'core.greeting.title': 'Jervis is answering you',
+  'core.greeting.hint': 'Wait for the prompt, then ask',
+  'core.listening.title': 'Listening — ask your question',
+  'core.listening.hint': 'Speak normally, then pause',
+  'core.thinking.title': 'Checking the systems',
+  'core.thinking.hint': 'Retrieving and combining the data',
+  'core.speaking.title': 'Jervis is answering',
+  'core.speaking.hint': 'The full answer is on screen too',
+  'core.toggleOn': 'Tap to start voice',
+  'core.toggleOff': 'Turn voice off',
+  'core.askNow': 'Ask without wake phrase',
+  'core.openChat': 'Open full chat ›',
+  'core.holdToTalk': 'Hold to talk',
+  'core.release': 'Release to send',
+  'core.unsupported': 'Hands-free voice needs Chrome or Edge. Hold the button to ask by voice instead.',
+  'core.noVoice': 'Voice is not available in this browser. Type your question below.',
+  'core.stop': 'Stop',
+  'voice.off': 'Voice off',
+  'voice.awake': 'Say “Hey Jervis”',
+  'voice.answering': 'Jervis is answering',
+  'voice.listening': 'Listening…',
+  'voice.thinking': 'Checking the systems…',
+  'voice.turnOn': 'Turn Jervis voice on',
+  'voice.turnOff': 'Turn Jervis voice off',
+  'voice.drag': 'Drag to move',
+  'voice.answered': 'Jervis answered',
+  'voice.sttMissing': 'Speech-to-text is not configured on the server.',
+  'voice.notCaught': 'I did not catch that. Please try again.',
+  'voice.micBlocked': 'Microphone permission is blocked. Allow it in the browser to use voice.',
+
+  // Answer card
+  'answer.ai': 'AI narrative',
+  'answer.template': 'Template narrative',
+  'answer.sources': 'Sources',
+  'answer.restricted': 'restricted',
+  'answer.mail': 'Mail',
+  'answer.calendar': 'Calendar',
+  'answer.tasks': 'Tasks',
+  'answer.needsReply': 'needs reply',
+  'answer.openToday': "Open today's plan ›",
+  'answer.openDashboard': 'Open dashboard ›',
+  'answer.openReport': 'Open report',
+  'answer.widgets': '{count} widgets',
+
+  // Today
+  'today.title': 'Today',
+  'today.subtitle': 'Your daily briefing, calendar and tasks in one place.',
+  'today.refresh': 'Refresh',
+  'today.read': 'Read it to me',
+  'today.stop': 'Stop',
+  'today.nothing': 'Nothing to report.',
+  'today.calendar': 'Calendar',
+  'today.noMeetings': 'No meetings today.',
+  'today.attendees': '{count} attendees',
+  'today.online': 'Online',
+  'today.tasks': 'Tasks',
+  'today.open': '{count} open',
+  'today.addPlaceholder': 'Add a task or reminder…',
+  'today.add': 'Add',
+  'today.due': 'Due',
+  'today.empty': 'Nothing on your list. Try "remind me to call the supplier tomorrow at 9" in Ask Jervis.',
+  'today.completed': '{count} completed',
+  'today.markDone': 'Mark done',
+  'today.markOpen': 'Mark open',
+  'today.delete': 'Delete task',
+  'today.needsReply': 'Emails that need a reply',
+
+  // Inbox
+  'inbox.title': 'Inbox',
+  'inbox.subtitle': 'Jervis reads the mailbox for you: what is unread, what needs a reply, and drafts you can send.',
+  'inbox.mock': 'Mock mailbox',
+  'inbox.connected': 'Connected',
+  'inbox.search': 'Search sender or subject…',
+  'inbox.clear': 'Clear search',
+  'inbox.filter.all': 'All',
+  'inbox.filter.unread': 'Unread',
+  'inbox.filter.needsReply': 'Needs reply',
+  'inbox.filter.flagged': 'Flagged',
+  'inbox.none': 'No messages',
+  'inbox.noneDetail': 'Nothing matches this filter.',
+  'inbox.select': 'Select a message',
+  'inbox.selectDetail': 'Pick an email on the left, or ask Jervis which ones need a reply.',
+  'inbox.flag': 'Flag',
+  'inbox.flagged': 'Flagged',
+  'inbox.removeFlag': 'Remove flag',
+  'inbox.makeTask': 'Make a task',
+  'inbox.taskAdded': 'Task added',
+  'inbox.to': 'To',
+  'inbox.replied': 'replied',
+  'inbox.needsReply': 'needs reply',
+  'inbox.draft': 'Draft a reply with Jervis',
+  'inbox.drafting': 'Drafting…',
+  'inbox.writeOwn': 'Write my own',
+  'inbox.replyTo': 'Reply to {name}',
+  'inbox.replyPlaceholder': 'Your reply…',
+  'inbox.send': 'Send',
+  'inbox.redraft': 'Redraft',
+  'inbox.cancel': 'Cancel',
+  'inbox.confirm': 'Send this reply to {email}?',
+  'inbox.yesSend': 'Yes, send',
+  'inbox.no': 'No',
+  'inbox.sending': 'Sending…',
+  'inbox.sent': 'Reply sent.',
+  'inbox.simulated': 'Reply recorded (simulated: the mailbox is not connected yet).',
+  'inbox.followUp': 'Follow up: {subject}',
+
+  // Dashboards
+  'dash.title': 'My Dashboards',
+  'dash.subtitle': 'Ask for a dashboard in plain English and Jervis assembles it from the connected sources.',
+  'dash.placeholder': 'e.g. Create a dashboard for Paint Line 2 this week',
+  'dash.create': 'Create',
+  'dash.building': 'Building…',
+  'dash.idea.1': 'Create a dashboard for Paint Line 2 this week',
+  'dash.idea.2': 'Dashboard of rework and downtime for yesterday',
+  'dash.idea.3': 'Build a dashboard of the top error codes this month',
+  'dash.none': 'No dashboards yet',
+  'dash.noneDetail': 'Create one above, or ask Jervis for one in the chat.',
+  'dash.widgets': '{count} widgets',
+  'dash.delete': 'Delete',
+  'dash.keep': 'Keep',
+  'dash.deleteLabel': 'Delete dashboard',
+  'dash.all': 'All dashboards',
+  'dash.followUp': 'Ask a follow-up',
+  'dash.builtFrom': '{period} · built from "{question}"',
+  'dash.delta': '{delta} vs previous period',
+  'dash.one': 'Dashboard',
+
+  // Settings
+  'settings.title': 'Settings',
+  'settings.subtitle': 'Preferences, AI configuration, and system information.',
+  'settings.tab.appearance': 'Appearance',
+  'settings.tab.ai': 'AI configuration',
+  'settings.tab.data': 'Data sources',
+  'settings.tab.system': 'System',
+  'settings.theme': 'Theme',
+  'settings.theme.light': 'Light',
+  'settings.theme.dark': 'Dark',
+  'settings.theme.system': 'System',
+  'settings.themeHelp': 'Choose a light or dark appearance, or follow your system setting.',
+  'settings.language': 'Language',
+  'settings.languageHelp': 'Jervis answers, speaks and listens in the language you choose.',
+  'settings.ai': 'AI configuration',
+  'settings.narration': 'Narration',
+  'settings.mode': 'Mode',
+  'settings.mode.claude': 'Claude rewords the narrative; figures stay from retrieval',
+  'settings.mode.template': 'Deterministic templates — offline, reproducible',
+  'settings.aiHelp': 'The AI provider and key are read from secure server-side configuration and never exposed to the browser.',
+  'settings.dataPrefs': 'Data source preferences',
+  'settings.dataLayer': 'Active data layer',
+  'settings.dataset': 'Dataset',
+  'settings.datasetValue': '{issues} issues through {date}',
+  'settings.configure': 'Configure integrations',
+  'settings.system': 'System information',
+  'settings.demoBuild': 'Demo build',
+  'settings.demoBody': 'This is a prototype running on synthetic data. The backend is Node and Express; the frontend is React and TypeScript.',
+  'settings.environment': 'Environment',
+  'settings.apiStatus': 'API status',
+  'settings.referenceDate': 'Reference date',
+
+  // Common
+  'common.loading': 'Loading…',
+  'common.error': 'Something went wrong',
+  'common.retry': 'Try again',
+  'common.save': 'Save',
+  'common.cancel': 'Cancel',
+};
+
+const de: Record<string, string> = {
+  'app.starting': 'Jervis wird gestartet…',
+  'app.name': 'Jervis AI',
+  'app.tagline': 'Produktionsintelligenz',
+  'nav.group.assistant': 'Assistent',
+  'nav.group.reports': 'Berichte',
+  'nav.group.data': 'Daten & Systeme',
+  'nav.group.activity': 'Aktivität',
+  'nav.group.account': 'Konto',
+  'nav.ask': 'Jervis fragen',
+  'nav.today': 'Heute',
+  'nav.inbox': 'Posteingang',
+  'nav.dashboards': 'Meine Dashboards',
+  'nav.overview': 'Übersicht',
+  'nav.issues': 'Produktionsprobleme',
+  'nav.analytics': 'Produktionsanalyse',
+  'nav.reports': 'Schichtberichte',
+  'nav.sources': 'Datenquellen',
+  'nav.integrations': 'Integrationen',
+  'nav.history': 'Gesprächsverlauf',
+  'nav.audit': 'Audit-Protokoll',
+  'nav.settings': 'Einstellungen',
+  'nav.help': 'Hilfe',
+  'nav.profile': 'Benutzerprofil',
+  'shell.search': 'Probleme suchen…',
+  'shell.collapse': 'Seitenleiste einklappen',
+  'shell.expand': 'Seitenleiste ausklappen',
+  'shell.openMenu': 'Menü öffnen',
+  'shell.closeMenu': 'Menü schließen',
+  'shell.light': 'Zum hellen Modus wechseln',
+  'shell.dark': 'Zum dunklen Modus wechseln',
+  'shell.critical': 'Offene kritische Probleme',
+  'shell.signOut': 'Abmelden',
+  'shell.language': 'Sprache',
+  'shell.demo': 'Demomodus',
+  'shell.live': '{count} live',
+
+  'login.title': 'Anmelden',
+  'login.subtitle': 'Melden Sie sich mit Ihrem Arbeitskonto an, um den Assistenten zu öffnen.',
+  'login.email': 'E-Mail',
+  'login.password': 'Passwort',
+  'login.passwordPlaceholder': 'Ihr Passwort',
+  'login.submit': 'Anmelden',
+  'login.submitting': 'Anmeldung läuft…',
+  'login.demo': 'Demokonten',
+  'login.clickToFill': 'zum Ausfüllen klicken',
+  'login.missing': 'Geben Sie E-Mail und Passwort ein.',
+  'login.failed': 'Anmeldung fehlgeschlagen.',
+
+  'help.title': 'Hilfe & Dokumentation',
+  'help.subtitle': 'Wie Jervis funktioniert und wie Sie schnell Antworten bekommen.',
+  'help.what': 'Was Jervis ist',
+  'help.whatBody':
+    'Jervis ist ein KI-Sekretär für die tägliche Arbeit im Werk. Er setzt auf den vorhandenen Systemen auf, beantwortet Fragen in normaler Sprache mit Quellenangabe zu jeder Zahl, liest Ihr Postfach, verwaltet Ihre Aufgaben und erstellt auf Wunsch einfache Dashboards. Er ersetzt diese Systeme nicht; er liest daraus und verweist Sie zurück.',
+  'help.ask': 'Jervis fragen',
+  'help.ask.body': 'Tippen oder sprechen Sie eine Frage. Jervis wählt die freigegebenen Systeme, ruft die Daten ab und antwortet mit Quellenangabe.',
+  'help.today': 'Heute',
+  'help.today.body': 'Ihr Tagesbriefing: Kalender, E-Mails mit Antwortbedarf, offene Aufgaben und das Geschehen an den Linien, auch zum Vorlesen.',
+  'help.inbox': 'Posteingang',
+  'help.inbox.body': 'Jervis liest das Postfach, markiert Antwortbedarf und entwirft Antworten. Das Senden fragt immer nach Ihrer Bestätigung.',
+  'help.dashboards': 'Meine Dashboards',
+  'help.dashboards.body':
+    'Beschreiben Sie ein Dashboard in normaler Sprache; Jervis stellt es aus den verbundenen Quellen für den gewünschten Zeitraum zusammen.',
+  'help.issues': 'Produktionsprobleme',
+  'help.issues.body':
+    'Alle erfassten Probleme suchen, filtern und sortieren. Ein Klick auf eine Zeile öffnet die Detailansicht mit Verlauf, verwandten Befunden und Quellen.',
+  'help.analytics': 'Produktionsanalyse',
+  'help.analytics.body': 'Trends und Aufschlüsselungen nach Schweregrad, Bereich und Fehlercode über einen Zeitraum. Jede Reihe ist ein echtes Aggregat.',
+  'help.reports': 'Schichtberichte',
+  'help.reports.body':
+    'Schicht- oder Tageszusammenfassung erzeugen. Zahlen sind abgerufene Fakten; die Erzählung ist als deterministisch oder KI-generiert gekennzeichnet.',
+  'help.integrations': 'Datenquellen & Integrationen',
+  'help.integrations.body':
+    'Sehen Sie, was verbunden ist und in welchem Modus. Manager konfigurieren Zugangsdaten und testen Verbindungen. Ohne Freigabe werden keine Live-Daten gelesen.',
+  'help.audit': 'Audit-Protokoll',
+  'help.audit.body': 'Manager prüfen jede gestellte Frage, jede E-Mail-Aktion und jede administrative Änderung, gefiltert nach Benutzer, Aktion und Ergebnis.',
+  'help.limits': 'Einschränkungen der Demo',
+  'help.limit.1': 'Alle Daten sind synthetisch und aus einem festen Seed erzeugt. Es werden keine Kundendaten verwendet.',
+  'help.limit.2': 'Konnektoren, einschließlich des Postfachs, laufen im Demomodus, bis echte Zugangsdaten auf der Seite Integrationen hinterlegt sind.',
+  'help.limit.3': 'Der Assistent gibt nie eine Live-Quelle an, solange die Integration nicht konfiguriert und freigegeben ist.',
+
+  'ask.title': 'Was möchten Sie über die Produktion wissen?',
+  'ask.subtitle':
+    'Stellen Sie Ihre Frage in normaler Sprache. Jervis durchsucht die für Sie freigegebenen Quellen, erklärt die Ergebnisse und nennt zu jeder Zahl das System dahinter.',
+  'ask.placeholder': 'Fragen Sie Jervis nach Produktionsproblemen, Ereignissen oder Trends…',
+  'ask.hint': 'Enter zum Senden · Shift+Enter für eine neue Zeile',
+  'ask.dictate': 'Diktieren',
+  'ask.retry': 'Erneut versuchen',
+  'ask.failed': 'Keine Antwort möglich: {message}',
+  'ask.stage.1': 'Frage wird verstanden…',
+  'ask.stage.2': 'Verfügbare Produktionsdaten werden geprüft…',
+  'ask.stage.3': 'Antwort wird vorbereitet…',
+  'ask.ex.briefing': 'Briefing',
+  'ask.ex.briefing.q': 'Was muss ich heute wissen?',
+  'ask.ex.inbox': 'Posteingang',
+  'ask.ex.inbox.q': 'Welche E-Mails brauchen eine Antwort?',
+  'ask.ex.investigate': 'Untersuchen',
+  'ask.ex.investigate.q': 'Gab es diese Woche kritische Probleme?',
+  'ask.ex.dashboard': 'Dashboard',
+  'ask.ex.dashboard.q': 'Erstelle ein Dashboard für Lackierlinie 2 diese Woche',
+
+  'core.label': 'Jervis Core',
+  'core.off.title': 'Sprachmodus ist aus',
+  'core.off.hint': 'Tippen Sie auf den Kern oder sagen Sie „Hey Jervis“',
+  'core.awake.title': 'Bereit — sagen Sie „Hey Jervis“',
+  'core.awake.hint': 'Wartet auf das Aktivierungswort',
+  'core.greeting.title': 'Jervis antwortet Ihnen',
+  'core.greeting.hint': 'Warten Sie auf die Aufforderung, dann fragen',
+  'core.listening.title': 'Hört zu — stellen Sie Ihre Frage',
+  'core.listening.hint': 'Normal sprechen, dann kurz warten',
+  'core.thinking.title': 'Systeme werden geprüft',
+  'core.thinking.hint': 'Daten werden abgerufen und zusammengeführt',
+  'core.speaking.title': 'Jervis antwortet',
+  'core.speaking.hint': 'Die vollständige Antwort steht auch auf dem Bildschirm',
+  'core.toggleOn': 'Tippen, um die Sprachsteuerung zu starten',
+  'core.toggleOff': 'Sprachsteuerung ausschalten',
+  'core.askNow': 'Ohne Aktivierungswort fragen',
+  'core.openChat': 'Vollständigen Chat öffnen ›',
+  'core.holdToTalk': 'Zum Sprechen gedrückt halten',
+  'core.release': 'Loslassen zum Senden',
+  'core.unsupported': 'Freihändige Sprachsteuerung braucht Chrome oder Edge. Halten Sie stattdessen die Taste gedrückt, um per Stimme zu fragen.',
+  'core.noVoice': 'Sprachsteuerung ist in diesem Browser nicht verfügbar. Tippen Sie Ihre Frage unten ein.',
+  'core.stop': 'Stopp',
+  'voice.off': 'Sprache aus',
+  'voice.awake': 'Sagen Sie „Hey Jervis“',
+  'voice.answering': 'Jervis antwortet',
+  'voice.listening': 'Hört zu…',
+  'voice.thinking': 'Systeme werden geprüft…',
+  'voice.turnOn': 'Jervis-Sprachsteuerung einschalten',
+  'voice.turnOff': 'Jervis-Sprachsteuerung ausschalten',
+  'voice.drag': 'Zum Verschieben ziehen',
+  'voice.answered': 'Jervis hat geantwortet',
+  'voice.sttMissing': 'Die Spracherkennung ist auf dem Server nicht konfiguriert.',
+  'voice.notCaught': 'Das habe ich nicht verstanden. Bitte versuchen Sie es noch einmal.',
+  'voice.micBlocked': 'Der Mikrofonzugriff ist blockiert. Erlauben Sie ihn im Browser, um die Sprachsteuerung zu nutzen.',
+
+  'answer.ai': 'KI-Erzählung',
+  'answer.template': 'Vorlagen-Erzählung',
+  'answer.sources': 'Quellen',
+  'answer.restricted': 'eingeschränkt',
+  'answer.mail': 'E-Mails',
+  'answer.calendar': 'Kalender',
+  'answer.tasks': 'Aufgaben',
+  'answer.needsReply': 'Antwort nötig',
+  'answer.openToday': 'Tagesplan öffnen ›',
+  'answer.openDashboard': 'Dashboard öffnen ›',
+  'answer.openReport': 'Bericht öffnen',
+  'answer.widgets': '{count} Kacheln',
+
+  'today.title': 'Heute',
+  'today.subtitle': 'Ihr Tagesbriefing, Kalender und Aufgaben an einem Ort.',
+  'today.refresh': 'Aktualisieren',
+  'today.read': 'Vorlesen',
+  'today.stop': 'Stopp',
+  'today.nothing': 'Nichts zu berichten.',
+  'today.calendar': 'Kalender',
+  'today.noMeetings': 'Heute keine Termine.',
+  'today.attendees': '{count} Teilnehmer',
+  'today.online': 'Online',
+  'today.tasks': 'Aufgaben',
+  'today.open': '{count} offen',
+  'today.addPlaceholder': 'Aufgabe oder Erinnerung hinzufügen…',
+  'today.add': 'Hinzufügen',
+  'today.due': 'Fällig',
+  'today.empty': 'Ihre Liste ist leer. Versuchen Sie „Erinnere mich, morgen um 9 den Lieferanten anzurufen“ bei Jervis fragen.',
+  'today.completed': '{count} erledigt',
+  'today.markDone': 'Als erledigt markieren',
+  'today.markOpen': 'Als offen markieren',
+  'today.delete': 'Aufgabe löschen',
+  'today.needsReply': 'E-Mails, die eine Antwort brauchen',
+
+  'inbox.title': 'Posteingang',
+  'inbox.subtitle': 'Jervis liest das Postfach für Sie: was ungelesen ist, was eine Antwort braucht, und Entwürfe, die Sie senden können.',
+  'inbox.mock': 'Demo-Postfach',
+  'inbox.connected': 'Verbunden',
+  'inbox.search': 'Absender oder Betreff suchen…',
+  'inbox.clear': 'Suche löschen',
+  'inbox.filter.all': 'Alle',
+  'inbox.filter.unread': 'Ungelesen',
+  'inbox.filter.needsReply': 'Antwort nötig',
+  'inbox.filter.flagged': 'Markiert',
+  'inbox.none': 'Keine Nachrichten',
+  'inbox.noneDetail': 'Nichts passt zu diesem Filter.',
+  'inbox.select': 'Nachricht auswählen',
+  'inbox.selectDetail': 'Wählen Sie links eine E-Mail oder fragen Sie Jervis, welche eine Antwort brauchen.',
+  'inbox.flag': 'Markieren',
+  'inbox.flagged': 'Markiert',
+  'inbox.removeFlag': 'Markierung entfernen',
+  'inbox.makeTask': 'Aufgabe erstellen',
+  'inbox.taskAdded': 'Aufgabe erstellt',
+  'inbox.to': 'An',
+  'inbox.replied': 'beantwortet',
+  'inbox.needsReply': 'Antwort nötig',
+  'inbox.draft': 'Antwort mit Jervis entwerfen',
+  'inbox.drafting': 'Entwurf wird erstellt…',
+  'inbox.writeOwn': 'Selbst schreiben',
+  'inbox.replyTo': 'Antwort an {name}',
+  'inbox.replyPlaceholder': 'Ihre Antwort…',
+  'inbox.send': 'Senden',
+  'inbox.redraft': 'Neu entwerfen',
+  'inbox.cancel': 'Abbrechen',
+  'inbox.confirm': 'Diese Antwort an {email} senden?',
+  'inbox.yesSend': 'Ja, senden',
+  'inbox.no': 'Nein',
+  'inbox.sending': 'Wird gesendet…',
+  'inbox.sent': 'Antwort gesendet.',
+  'inbox.simulated': 'Antwort erfasst (simuliert: das Postfach ist noch nicht verbunden).',
+  'inbox.followUp': 'Nachfassen: {subject}',
+
+  'dash.title': 'Meine Dashboards',
+  'dash.subtitle': 'Beschreiben Sie das gewünschte Dashboard in normaler Sprache, und Jervis stellt es aus den verbundenen Quellen zusammen.',
+  'dash.placeholder': 'z. B. Erstelle ein Dashboard für Lackierlinie 2 diese Woche',
+  'dash.create': 'Erstellen',
+  'dash.building': 'Wird erstellt…',
+  'dash.idea.1': 'Erstelle ein Dashboard für Lackierlinie 2 diese Woche',
+  'dash.idea.2': 'Dashboard zu Nacharbeit und Stillstand von gestern',
+  'dash.idea.3': 'Erstelle ein Dashboard der häufigsten Fehlercodes diesen Monat',
+  'dash.none': 'Noch keine Dashboards',
+  'dash.noneDetail': 'Erstellen Sie oben eines oder bitten Sie Jervis im Chat darum.',
+  'dash.widgets': '{count} Kacheln',
+  'dash.delete': 'Löschen',
+  'dash.keep': 'Behalten',
+  'dash.deleteLabel': 'Dashboard löschen',
+  'dash.all': 'Alle Dashboards',
+  'dash.followUp': 'Nachfrage stellen',
+  'dash.builtFrom': '{period} · erstellt aus „{question}“',
+  'dash.delta': '{delta} zum Vorzeitraum',
+  'dash.one': 'Dashboard',
+
+  'settings.title': 'Einstellungen',
+  'settings.subtitle': 'Präferenzen, KI-Konfiguration und Systeminformationen.',
+  'settings.tab.appearance': 'Darstellung',
+  'settings.tab.ai': 'KI-Konfiguration',
+  'settings.tab.data': 'Datenquellen',
+  'settings.tab.system': 'System',
+  'settings.theme': 'Design',
+  'settings.theme.light': 'Hell',
+  'settings.theme.dark': 'Dunkel',
+  'settings.theme.system': 'System',
+  'settings.themeHelp': 'Helle oder dunkle Darstellung wählen oder der Systemeinstellung folgen.',
+  'settings.language': 'Sprache',
+  'settings.languageHelp': 'Jervis antwortet, spricht und hört in der gewählten Sprache.',
+  'settings.ai': 'KI-Konfiguration',
+  'settings.narration': 'Erzählung',
+  'settings.mode': 'Modus',
+  'settings.mode.claude': 'Claude formuliert die Erzählung; die Zahlen stammen weiterhin aus dem Abruf',
+  'settings.mode.template': 'Deterministische Vorlagen — offline, reproduzierbar',
+  'settings.aiHelp': 'KI-Anbieter und Schlüssel werden aus der sicheren Serverkonfiguration gelesen und nie an den Browser weitergegeben.',
+  'settings.dataPrefs': 'Datenquellen-Einstellungen',
+  'settings.dataLayer': 'Aktive Datenschicht',
+  'settings.dataset': 'Datensatz',
+  'settings.datasetValue': '{issues} Probleme bis {date}',
+  'settings.configure': 'Integrationen konfigurieren',
+  'settings.system': 'Systeminformationen',
+  'settings.demoBuild': 'Demo-Build',
+  'settings.demoBody': 'Dies ist ein Prototyp mit synthetischen Daten. Das Backend läuft mit Node und Express, das Frontend mit React und TypeScript.',
+  'settings.environment': 'Umgebung',
+  'settings.apiStatus': 'API-Status',
+  'settings.referenceDate': 'Referenzdatum',
+
+  'common.loading': 'Wird geladen…',
+  'common.error': 'Etwas ist schiefgelaufen',
+  'common.retry': 'Erneut versuchen',
+  'common.save': 'Speichern',
+  'common.cancel': 'Abbrechen',
+};
+
+const dictionaries: Record<Language, Record<string, string>> = { en: { ...pagesEn, ...en }, de: { ...pagesDe, ...de } };
+
+export type Translate = (key: string, vars?: Record<string, string | number>) => string;
+
+interface I18nValue {
+  language: Language;
+  locale: string;
+  speechLocale: string;
+  setLanguage: (language: Language) => void;
+  t: Translate;
+}
+
+const I18nContext = createContext<I18nValue | null>(null);
+
+const readStored = (): Language => {
+  try {
+    const v = window.localStorage.getItem(STORAGE_KEY);
+    if (v === 'de' || v === 'en') return v;
+  } catch {
+    /* storage unavailable */
+  }
+  return typeof navigator !== 'undefined' && /^de\b/i.test(navigator.language) ? 'de' : 'en';
+};
+
+const interpolate = (template: string, vars?: Record<string, string | number>) =>
+  vars ? template.replace(/\{(\w+)\}/g, (_, k: string) => (k in vars ? String(vars[k]) : `{${k}}`)) : template;
+
+export function LanguageProvider({ children }: { children: React.ReactNode }) {
+  const [language, setLanguageState] = useState<Language>(() => (typeof window === 'undefined' ? 'en' : readStored()));
+
+  const setLanguage = useCallback((next: Language) => {
+    setLanguageState(next);
+    try {
+      window.localStorage.setItem(STORAGE_KEY, next);
+    } catch {
+      /* storage unavailable: the choice just won't persist */
+    }
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.lang = language;
+  }, [language]);
+
+  const value = useMemo<I18nValue>(() => {
+    const meta = LANGUAGES.find((l) => l.id === language) ?? LANGUAGES[0];
+    const t: Translate = (key, vars) => interpolate(dictionaries[language][key] ?? dictionaries.en[key] ?? key, vars);
+    return { language, locale: meta.locale, speechLocale: meta.speech, setLanguage, t };
+  }, [language, setLanguage]);
+
+  return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
+}
+
+export function useI18n(): I18nValue {
+  const ctx = useContext(I18nContext);
+  if (!ctx) throw new Error('useI18n must be used within LanguageProvider');
+  return ctx;
+}
+
+export function useT(): Translate {
+  return useI18n().t;
+}

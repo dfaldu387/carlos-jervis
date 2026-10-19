@@ -1,12 +1,17 @@
 import { POWERBI_REPORTS } from '../data/catalog.js';
 import { getRepository } from '../data/index.js';
+import { isLive, resolve_ } from '../integrations/store.js';
+import { overlayLiveMeasures } from './powerbi.client.js';
 
 /**
- * Power BI connector (mock mode).
+ * Power BI connector.
  *
  * Returns the measures the client's dashboards publish, plus the deep link
- * back to the report. In live mode the same function shape is backed by
- * POST /v1.0/myorg/groups/{groupId}/datasets/{datasetId}/executeQueries.
+ * back to the report. Measures are computed from the active data source by
+ * default; when the Power BI connector is configured and enabled with a DAX
+ * measures query, the live values from
+ * POST /v1.0/myorg/groups/{groupId}/datasets/{datasetId}/executeQueries are
+ * overlaid on top, and any value that came back live is marked `live: true`.
  */
 
 const planned = 460; // planned vehicles per line per shift, used for yield math
@@ -138,8 +143,20 @@ export const fetchMeasures = async (filter = {}, { includeRestricted = false } =
     });
   }
 
+  // Live overlay: when Power BI is configured and enabled with a DAX query,
+  // replace the computed values with the published measures. Any failure keeps
+  // the computed values, so an answer never claims a live figure it did not get.
+  let mode = 'mock';
+  let resolvedMeasures = measures;
+  if (isLive('powerbi')) {
+    const overlay = await overlayLiveMeasures(measures, resolve_('powerbi'));
+    resolvedMeasures = overlay.measures;
+    mode = overlay.mode;
+  }
+
   return {
-    measures,
+    measures: resolvedMeasures,
+    mode,
     reworkBreakdown: byRework,
     reports: POWERBI_REPORTS.filter((report) => includeRestricted || !report.restricted).map(
       (report) => ({

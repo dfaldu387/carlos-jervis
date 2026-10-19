@@ -61,6 +61,7 @@ export const INTENTS = {
   POWERBI_MEASURE: 'powerbi_measure',
   CREATE_DASHBOARD: 'create_dashboard',
   TRIGGER_FLOW: 'trigger_flow',
+  DOCUMENT_QUESTION: 'document_question',
   CAPABILITIES: 'capabilities',
   GREETING: 'greeting',
   UNKNOWN: 'unknown',
@@ -109,6 +110,23 @@ const INTENT_RULES = [
       /\bpower ?bi[\s-]*(wert|zahl|kennzahl)\b/,
       /\b(oee|first pass yield|fpy|rework rate|nacharbeitsquote)\b.*\bpower ?bi\b/,
       /\bpower ?bi\b.*\b(oee|first pass yield|fpy|rework rate|nacharbeitsquote)\b/,
+    ],
+  },
+  {
+    // Document / procedure questions answered from approved documents (RAG).
+    // Deliberately specific vocabulary so production questions are not captured;
+    // numeric questions fall through to the production rules below.
+    intent: INTENTS.DOCUMENT_QUESTION,
+    patterns: [
+      /\b(procedure|policy|guideline|protocol|instructions?)\b/,
+      /\bhow (do|should) (i|we|you)\b/,
+      /\bhow to\b/,
+      /\bwhat('?s| is| are) the (procedure|process|policy|rule|rules|escalation|steps?)\b/,
+      /\b(what does|according to) the (document|procedure|policy|manual|guideline)\b/,
+      /\b(verfahren|vorgehen|vorgehensweise|richtlinie|anleitung|protokoll)\b/,
+      /\bwie (gehe|gehen) (ich|wir) (dabei )?vor\b/,
+      /\bwie (muss|soll) (ich|man)\b/,
+      /\bwas sagt (das|die|der) (dokument|richtlinie|verfahren|anleitung)\b/,
     ],
   },
   {

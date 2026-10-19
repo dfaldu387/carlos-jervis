@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
-    "test": "node --test \"test/**/*.test.js\""
+    "test": "node --test --import=./test/_setup.js \"test/**/*.test.js\""
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.73.0",

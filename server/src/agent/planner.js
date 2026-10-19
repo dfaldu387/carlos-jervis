@@ -129,6 +129,9 @@ const PLANS = {
   [INTENTS.TRIGGER_FLOW]: [
     { tool: 'automate.trigger', reason: 'Resolve the named flow and propose it for an explicit confirmation' },
   ],
+  [INTENTS.DOCUMENT_QUESTION]: [
+    { tool: 'documents.search', reason: 'Find the relevant passages in approved documents and cite them' },
+  ],
 };
 
 /** Intents that are answered without touching a data source. */

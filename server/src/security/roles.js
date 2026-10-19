@@ -20,6 +20,7 @@
  *   calendar:read      calendar events and the daily briefing
  *   tasks:write        create, update and complete reminders (implies reading them)
  *   dashboards:write   create and delete on-request dashboards
+ *   documents:read     search approved documents (per-document ACL still applies)
  */
 
 export const ROLES = {
@@ -27,7 +28,7 @@ export const ROLES = {
     id: 'viewer',
     name: 'Line viewer',
     description: 'Shop-floor view: issues, rework and downtime for their own lines.',
-    permissions: ['production:read', 'calendar:read', 'tasks:write'],
+    permissions: ['production:read', 'calendar:read', 'tasks:write', 'documents:read'],
   },
   engineer: {
     id: 'engineer',
@@ -44,6 +45,7 @@ export const ROLES = {
       'tasks:write',
       'dashboards:write',
       'automate:run',
+      'documents:read',
     ],
   },
   manager: {
@@ -64,6 +66,7 @@ export const ROLES = {
       'tasks:write',
       'dashboards:write',
       'automate:run',
+      'documents:read',
     ],
   },
 };

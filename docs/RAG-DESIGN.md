@@ -1,9 +1,31 @@
 # Retrieval-augmented generation for Jervis — design
 
-Status: proposal. Nothing in this document is built yet; it describes how the
-retrieval layer should sit next to the existing tool-based agent so that
-Jervis can also answer from documents (procedures, supplier contracts, meeting
-notes, mails) without inventing anything.
+Status: **partially built**. A first, offline-only version of the retrieval
+layer now ships: the `documents.search` tool, a deterministic embedding
+provider, chunking, an ACL-filtered in-memory index and a small synthetic
+corpus, wired through a new `DOCUMENT_QUESTION` intent (EN + DE) and rendered
+with citations. See *What is built today* below. The rest of this document —
+pgvector persistence, a real embedding model, and live SharePoint/mailbox
+ingestion — remains the plan.
+
+## What is built today
+
+| Piece | Where |
+| --- | --- |
+| Embeddings (offline, deterministic, pluggable) | `server/src/rag/embeddings.js` — `JERVIS_EMBEDDING_PROVIDER` selects the provider; only `deterministic` is implemented |
+| Chunking (~400 words, 15% overlap, title prepended) | `server/src/rag/chunk.js` |
+| ACL-filtered vector + keyword index | `server/src/rag/store.js` |
+| Synthetic corpus + role→group ACL | `server/src/rag/corpus.js` |
+| `documents.search` tool (`documents:read`) | `server/src/agent/tools/documents.js` |
+| Intent, plan, synthesizer rendering | `nlu.js` `DOCUMENT_QUESTION`, `planner.js`, `synthesizer.js` |
+
+Not yet built from the design below: pgvector persistence (the index is
+in-memory), a real multilingual embedding model, live document ingest from
+SharePoint / the mailbox / a file share, and the cross-encoder rerank.
+
+---
+
+Original proposal follows.
 
 ## 1. Why a separate layer
 

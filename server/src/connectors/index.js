@@ -133,6 +133,7 @@ export const SOURCE_LABELS = {
   mqtt: 'MQTT Explorer',
   microsoft365: 'Microsoft 365',
   power_automate: 'Power Automate',
+  documents: 'Documents',
   tasks: 'Jervis tasks',
   dashboards: 'Jervis dashboards',
   catalog: 'Reference data',

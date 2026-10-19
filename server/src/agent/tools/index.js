@@ -23,6 +23,7 @@ import {
 } from './secretary.js';
 import { dashboardCreate, powerbiMeasure } from './dashboards.js';
 import { automateTrigger } from './automate.js';
+import { documentsSearch } from './documents.js';
 
 /**
  * Tool registry.
@@ -46,6 +47,7 @@ const PERMISSIONS = {
   'powerbi.reports': 'production:read',
   'telemetry.downtime': 'production:read',
   'maintenance.tickets': 'maintenance:read',
+  'documents.search': 'documents:read',
 };
 
 export const TOOLS = Object.fromEntries(
@@ -70,6 +72,7 @@ export const TOOLS = Object.fromEntries(
     powerbiMeasure,
     dashboardCreate,
     automateTrigger,
+    documentsSearch,
   ].map((tool) => [tool.id, { permission: PERMISSIONS[tool.id] ?? null, ...tool }]),
 );
 

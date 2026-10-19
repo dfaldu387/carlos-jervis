@@ -1,5 +1,9 @@
 import { getRepository } from '../../data/index.js';
 import { fetchMeasures } from '../../connectors/powerbi.connector.js';
+import { fetchTickets } from '../../connectors/integral.connector.js';
+import { getLiveDowntimeBuffer } from '../../connectors/mqtt.ingest.js';
+import { isLive } from '../../integrations/store.js';
+import { logger } from '../../utils/logger.js';
 import { POWERBI_REPORTS } from '../../data/catalog.js';
 import { lineLabel } from '../labels.js';
 
@@ -31,11 +35,24 @@ export const maintenanceTickets = {
   label: 'Maintenance tickets',
   description: 'Maintenance work recorded in the Integral Portal for the period.',
   async run({ filter, limit = 6 }) {
-    const repository = getRepository();
-    const rows = await repository.listMaintenance({ ...filter, limit });
+    let rows;
+    let live = false;
+    // Prefer the live portal when it is configured and enabled; fall back to
+    // the synthetic tickets on any failure so the question is still answered.
+    if (isLive('integral_portal')) {
+      try {
+        rows = await fetchTickets({ ...filter, limit });
+        live = true;
+      } catch (error) {
+        logger.warn('Integral Portal fetch failed; using synthetic tickets', { error: error.message });
+      }
+    }
+    if (!rows) {
+      rows = await getRepository().listMaintenance({ ...filter, limit });
+    }
     const open = rows.filter((row) => row.status === 'open').length;
     return {
-      data: { rows, open, total: rows.length },
+      data: { rows, open, total: rows.length, live },
       citation: {
         source: 'integral_portal',
         object: 'maintenance.tickets',
@@ -52,8 +69,15 @@ export const downtimeEvents = {
   label: 'Downtime signals',
   description: 'Line stop and downtime events from the MQTT broker.',
   async run({ filter, limit = 6 }) {
-    const repository = getRepository();
-    const rows = await repository.listDowntime({ ...filter, limit });
+    // Prefer live downtime captured from the MQTT broker when the connector is
+    // live and has recorded events; otherwise read the synthetic telemetry.
+    let rows;
+    const buffer = getLiveDowntimeBuffer();
+    if (isLive('mqtt') && buffer && buffer.size > 0) {
+      rows = buffer.list({ ...filter, limit });
+    } else {
+      rows = await getRepository().listDowntime({ ...filter, limit });
+    }
     const totalMinutes = rows.reduce((sum, row) => sum + row.durationMinutes, 0);
     const byLine = new Map();
     for (const row of rows) {

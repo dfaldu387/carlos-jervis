@@ -80,6 +80,15 @@ export const config = {
     retainEntries: Number(process.env.JERVIS_AUDIT_RETAIN ?? 500),
   },
 
+  // Retrieval-augmented document search. The embedding provider defaults to the
+  // offline deterministic embedder so document search works with no external
+  // service and no document text leaving the machine (docs/RAG-DESIGN.md).
+  rag: {
+    enabled: bool(process.env.JERVIS_RAG_ENABLED, true),
+    embeddingProvider: process.env.JERVIS_EMBEDDING_PROVIDER ?? 'deterministic',
+    topK: Number(process.env.JERVIS_RAG_TOPK ?? 4),
+  },
+
   // Authentication. Sessions are server-side; the browser holds only an opaque
   // httpOnly cookie. The header-role override is a development and test
   // convenience and is refused in production, where a real session is the only

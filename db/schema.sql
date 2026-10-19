@@ -186,3 +186,19 @@ CREATE TABLE IF NOT EXISTS audit.query_log (
 );
 
 CREATE INDEX IF NOT EXISTS query_log_logged_at_idx ON audit.query_log (logged_at DESC);
+
+-- General administrative event trail: SSO logins, integration changes, flow
+-- triggers, withheld tools, permission denials. Separate from the per-question
+-- query_log above.
+CREATE TABLE IF NOT EXISTS audit.events (
+  event_id   text PRIMARY KEY,
+  logged_at  timestamptz NOT NULL DEFAULT now(),
+  user_id    text,
+  role       text,
+  action     text NOT NULL,
+  resource   text,
+  outcome    text NOT NULL DEFAULT 'ok',
+  detail     text
+);
+
+CREATE INDEX IF NOT EXISTS events_logged_at_idx ON audit.events (logged_at DESC);

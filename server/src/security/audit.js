@@ -1,16 +1,48 @@
 import { config } from '../config.js';
 import { newId } from '../utils/ids.js';
+import { logger } from '../utils/logger.js';
 
 /**
  * Query audit trail.
  *
  * Every question, the role that asked it, the systems that were read and
- * anything withheld. In-memory for the prototype; the same records belong in a
- * durable store once the database is integrated.
+ * anything withheld. Kept in memory for fast reads; when a durable sink is
+ * attached (Postgres, see audit-sink.js) every record is also mirrored to the
+ * database so the trail survives a restart, and the in-memory view is hydrated
+ * from the database on boot. Sink writes are fire-and-forget: a database error
+ * is logged but never blocks answering a question.
  */
 
 const entries = [];
 const events = [];
+
+let sink = null;
+
+/** Attach (or detach with null) a durable audit sink. */
+export const setAuditSink = (nextSink) => {
+  sink = nextSink;
+};
+
+/** Load the most recent persisted records into the in-memory view on startup. */
+export const hydrateAudit = async () => {
+  if (!sink) return;
+  try {
+    const [persistedEntries, persistedEvents] = await Promise.all([
+      sink.recentQueries(config.audit.retainEntries),
+      sink.recentEvents(config.audit.retainEntries),
+    ]);
+    entries.splice(0, entries.length, ...persistedEntries);
+    events.splice(0, events.length, ...persistedEvents);
+    logger.info('Audit trail hydrated from durable store', {
+      entries: entries.length,
+      events: events.length,
+    });
+  } catch (error) {
+    logger.error('Audit hydration failed; starting with an empty in-memory trail', {
+      error: error.message,
+    });
+  }
+};
 
 /**
  * General audit event: actor, action, resource, outcome. Covers administrative
@@ -31,6 +63,7 @@ export const recordAudit = ({ access, action, resource, outcome = 'ok', detail =
   };
   events.unshift(event);
   if (events.length > config.audit.retainEntries) events.length = config.audit.retainEntries;
+  if (sink) sink.writeEvent(event).catch((error) => logger.error('Audit event persist failed', { error: error.message }));
   return event;
 };
 
@@ -58,6 +91,7 @@ export const recordQuery = ({ question, access, result }) => {
 
   entries.unshift(entry);
   if (entries.length > config.audit.retainEntries) entries.length = config.audit.retainEntries;
+  if (sink) sink.writeQuery(entry).catch((error) => logger.error('Audit query persist failed', { error: error.message }));
   return entry;
 };
 

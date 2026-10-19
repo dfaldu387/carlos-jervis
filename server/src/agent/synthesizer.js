@@ -291,6 +291,7 @@ export const compose = ({ interpretation, facts, access, language, withheld = []
   const measure = fact(facts, 'powerbi.measure');
   const dashboard = fact(facts, 'dashboard.create')?.dashboard ?? null;
   const automate = fact(facts, 'automate.trigger');
+  const docSearch = fact(facts, 'documents.search');
 
   const total = issueTotal ?? issues?.total ?? errorCodes?.buckets?.reduce((sum, b) => sum + b.count, 0) ?? 0;
   const minutes = (value) => minutesLabel(value, lang);
@@ -830,6 +831,37 @@ export const compose = ({ interpretation, facts, access, language, withheld = []
         narrative.push(t(lang, 'automate.narrative', { label }));
         narrative.push(t(lang, 'automate.confirm'));
         if (proposal.mode !== 'live') narrative.push(t(lang, 'automate.simulated'));
+        break;
+      }
+
+      case INTENTS.DOCUMENT_QUESTION: {
+        // Self-contained rendering so document answers need no new dictionary
+        // keys. Passages are quoted with their source; the structured payload
+        // (and the citations the orchestrator attaches) carry the detail.
+        const passages = docSearch?.passages ?? [];
+        if (passages.length === 0) {
+          headline = lang === 'de' ? 'Keine passende Stelle gefunden' : 'No matching document found';
+          narrative.push(
+            lang === 'de'
+              ? 'In den freigegebenen Dokumenten wurde dazu nichts gefunden, das Ihre Rolle einsehen darf.'
+              : 'Nothing your role may read was found in the approved documents for that question.',
+          );
+          break;
+        }
+        const top = passages[0];
+        headline =
+          lang === 'de'
+            ? `Aus „${top.title}“`
+            : `From “${top.title}”`;
+        narrative.push(
+          lang === 'de'
+            ? `Das Folgende stammt aus freigegebenen Dokumenten. Jede Stelle nennt ihre Quelle.`
+            : `The following is from approved documents. Each passage names its source.`,
+        );
+        for (const passage of passages.slice(0, 3)) {
+          const excerpt = passage.excerpt.length > 320 ? `${passage.excerpt.slice(0, 317)}…` : passage.excerpt;
+          bullets.push({ text: `${passage.title}: ${excerpt}` });
+        }
         break;
       }
 

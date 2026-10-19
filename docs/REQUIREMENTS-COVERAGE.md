@@ -4,6 +4,31 @@ Section numbers refer to *Jervis AI Assistant — Project Summary & Client
 Requirements* (the October 5 meeting summary). This records what the prototype
 actually does, what it stands in for, and what the document itself leaves open.
 
+## Added in the current iteration
+
+Building toward live integrations and document retrieval (all unit-tested;
+items marked *live-verify* need the client's credentials or infrastructure to
+confirm against the real system):
+
+- **Postgres data adapter** — the DB seam is implemented against `db/schema.sql`
+  (`server/src/data/adapters/postgres.adapter.js`), replacing the 501 stub.
+  *live-verify* (needs a Postgres instance).
+- **Power BI live measures** — `connectors/powerbi.client.js` runs the
+  configured DAX via `executeQueries`; live values overlay the computed ones and
+  are flagged, with a safe fallback. *live-verify* (needs a service principal).
+- **Integral Portal live tickets** — `connectors/integral.connector.js` reads
+  real tickets when the connector is live, falling back to synthetic on failure.
+  *live-verify* (needs the portal URL + key).
+- **Durable audit trail** — `security/audit-sink.js` mirrors the query and event
+  logs to `audit.*` and hydrates them on boot. *live-verify* (needs Postgres).
+- **Document search (RAG), first version** — offline, ACL-filtered document
+  retrieval end to end; see `docs/RAG-DESIGN.md`, *What is built today*.
+- **MQTT downtime ingestion pipeline** — state-message parser and stop→event
+  buffer feeding the downtime tool (`connectors/mqtt.ingest.js`); the broker
+  subscriber is still open pending the confirmed topic/payload.
+- **Deterministic tests** — the suite pins a reference date so relative-date
+  questions no longer fail on certain weekdays.
+
 ## Built and working
 
 | § | Requirement | Where it lives |

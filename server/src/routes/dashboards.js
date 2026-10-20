@@ -2,7 +2,8 @@ import { Router } from 'express';
 import { requirePermission } from '../middleware/access.js';
 import { recordAudit } from '../security/audit.js';
 import { buildDashboard, refreshDashboard } from '../dashboards/builder.js';
-import { deleteDashboard, getDashboard, listDashboards } from '../dashboards/store.js';
+import { deleteDashboard, getAllDashboards, getDashboard } from '../dashboards/store.js';
+import { localizeDashboard, resolveDashboardText } from '../dashboards/localize.js';
 import { normalizeLanguage } from '../agent/i18n.js';
 
 export const dashboardsRouter = Router();
@@ -15,9 +16,27 @@ export const dashboardsRouter = Router();
  * one dashboard recomputes every widget from the repository before answering.
  */
 
-/** GET /api/dashboards */
-dashboardsRouter.get('/', requirePermission('production:read'), (_req, res) => {
-  res.json({ items: listDashboards() });
+/** GET /api/dashboards?language= - names localized to the viewer's language. */
+dashboardsRouter.get('/', requirePermission('production:read'), async (req, res, next) => {
+  try {
+    const language = req.query.language ? normalizeLanguage(req.query.language) : 'en';
+    const items = await Promise.all(
+      getAllDashboards().map(async (dashboard) => {
+        const text = await resolveDashboardText(dashboard, language);
+        return {
+          id: dashboard.id,
+          title: text.title,
+          question: text.question,
+          createdAt: dashboard.createdAt,
+          createdBy: dashboard.createdBy,
+          widgetCount: dashboard.widgets.length,
+        };
+      }),
+    );
+    res.json({ items });
+  } catch (error) {
+    next(error);
+  }
 });
 
 /** POST /api/dashboards { question?, title?, language? } */
@@ -56,7 +75,9 @@ dashboardsRouter.get('/:id', requirePermission('production:read'), async (req, r
       res.status(404).json({ error: 'not_found', message: 'No such dashboard.' });
       return;
     }
+    const language = req.query.language ? normalizeLanguage(req.query.language) : 'en';
     const item = await refreshDashboard(structuredClone(dashboard));
+    await localizeDashboard(dashboard, item, language);
     recordAudit({ access: req.access, action: 'dashboard.read', resource: item.id, outcome: 'ok', detail: item.title });
     res.json({ item });
   } catch (error) {

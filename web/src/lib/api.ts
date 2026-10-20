@@ -109,9 +109,11 @@ export const api = {
       body: JSON.stringify({ ...p, confirm: true }),
     }),
 
-  dashboards: () => request<{ items: SavedDashboardSummary[] }>('/dashboards'),
-  createDashboard: (p: { question?: string; title?: string }) => request<{ item: SavedDashboard }>('/dashboards', { method: 'POST', body: JSON.stringify(p) }),
-  dashboardById: (id: string) => request<{ item: SavedDashboard }>(`/dashboards/${id}`),
+  dashboards: (language?: Language) => request<{ items: SavedDashboardSummary[] }>(`/dashboards${language ? `?language=${language}` : ''}`),
+  createDashboard: (p: { question?: string; title?: string; language?: Language }) =>
+    request<{ item: SavedDashboard }>('/dashboards', { method: 'POST', body: JSON.stringify(p) }),
+  dashboardById: (id: string, language?: Language) =>
+    request<{ item: SavedDashboard }>(`/dashboards/${id}${language ? `?language=${language}` : ''}`),
   deleteDashboard: (id: string) => request<{ ok: boolean }>(`/dashboards/${id}`, { method: 'DELETE' }),
 };
 

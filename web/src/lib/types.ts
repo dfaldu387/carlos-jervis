@@ -210,6 +210,9 @@ export interface AskResult {
   id: string;
   sessionId: string;
   question: string;
+  // The asked question re-expressed in `language` when it is a known suggestion
+  // phrase; used to relabel the question bubble after a language switch.
+  localizedQuestion?: string;
   interpretation?: Record<string, unknown>;
   answer: Answer;
   sources?: { source: string; label: string; object: string; url?: string | null; mode?: string }[];

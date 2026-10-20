@@ -44,6 +44,14 @@ Rules:
 - Write in the language named in the request (English or German). German replies use the formal "Sie".
 - Return the body only.`;
 
+const TRANSLATE_PROMPT = `You translate short UI strings for a production-management dashboard between English and German.
+
+Rules:
+- Translate naturally and concisely, the way a German production manager would phrase it; German uses the formal register.
+- Keep product and system names, production line names (e.g. "Paint Line 2", "FA2"), error codes, numbers and dates exactly as given.
+- Preserve the meaning; never add, drop or invent information.
+- Return ONLY a JSON object with exactly the same keys as the input, each value being the translation in {language}. No commentary, no code fences.`;
+
 let client = null;
 
 const getClient = () => {
@@ -51,6 +59,77 @@ const getClient = () => {
     client = new Anthropic({ apiKey: config.llm.apiKey });
   }
   return client;
+};
+
+/** First balanced JSON object in a string, or null. Tolerates stray prose or fences. */
+const extractJsonObject = (text) => {
+  const start = text.indexOf('{');
+  if (start < 0) return null;
+  let depth = 0;
+  for (let i = start; i < text.length; i += 1) {
+    if (text[i] === '{') depth += 1;
+    else if (text[i] === '}') {
+      depth -= 1;
+      if (depth === 0) {
+        try {
+          return JSON.parse(text.slice(start, i + 1));
+        } catch {
+          return null;
+        }
+      }
+    }
+  }
+  return null;
+};
+
+/**
+ * Translates a dashboard's free-text strings (its name, the question it was
+ * built from, the period label) into the target language. Returns an object
+ * with the same keys translated, or null when Claude is not enabled or the call
+ * does not yield usable text, so callers fall back to the stored strings.
+ *
+ * @param {{ texts: Record<string,string>, language: 'en'|'de' }} args
+ * @returns {Promise<Record<string,string> | null>}
+ */
+export const translateDashboardText = async ({ texts, language = 'en' }) => {
+  if (!llmEnabled()) return null;
+  const entries = Object.entries(texts ?? {}).filter(([, value]) => typeof value === 'string' && value.trim());
+  if (entries.length === 0) return null;
+  const source = Object.fromEntries(entries);
+  const target = language === 'de' ? 'German' : 'English';
+
+  try {
+    const response = await getClient().messages.create({
+      model: config.llm.model,
+      max_tokens: 500,
+      system: TRANSLATE_PROMPT.replace('{language}', target),
+      messages: [
+        {
+          role: 'user',
+          content: `Translate the values of this JSON into ${target}. Return only the JSON object.\n${JSON.stringify(source)}`,
+        },
+      ],
+    });
+    if (response.stop_reason === 'refusal') {
+      logger.warn('LLM dashboard translation declined; keeping original text');
+      return null;
+    }
+    const text = response.content
+      .filter((block) => block.type === 'text')
+      .map((block) => block.text)
+      .join('')
+      .trim();
+    const json = extractJsonObject(text);
+    if (!json) return null;
+    const out = {};
+    for (const key of Object.keys(source)) {
+      if (typeof json[key] === 'string' && json[key].trim()) out[key] = json[key].trim();
+    }
+    return Object.keys(out).length ? out : null;
+  } catch (error) {
+    logger.warn('LLM dashboard translation failed; keeping original text', { error: error.message });
+    return null;
+  }
 };
 
 /**

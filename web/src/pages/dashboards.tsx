@@ -57,52 +57,77 @@ function KpiTile({ w }: { w: DashboardWidget }) {
   );
 }
 
+/** Themed tooltip for the donut, matching the bar/line tooltip. */
+function PieTip({ active, payload }: { active?: boolean; payload?: { name?: string; value?: number; payload?: { name: string } }[] }) {
+  if (!active || !payload?.length) return null;
+  const p = payload[0];
+  return (
+    <div className="rounded-md border border-border bg-popover px-2.5 py-1.5 text-xs shadow-md">
+      <div className="font-medium text-foreground">{p.name ?? p.payload?.name}</div>
+      <div className="text-muted-foreground">{p.value}</div>
+    </div>
+  );
+}
+
+/** A donut with a tidy two-column legend: aligned swatches, truncated labels,
+ *  right-aligned values. The chart grows with the card; the legend sits below. */
+function PieTile({ data }: { data: CategoryWidgetData }) {
+  return (
+    <div className="flex flex-1 flex-col">
+      <div className="min-h-[190px] flex-1">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie data={data} dataKey="value" nameKey="name" innerRadius="60%" outerRadius="90%" paddingAngle={2} stroke="hsl(var(--card))" strokeWidth={2}>
+              {data.map((_, i) => (
+                <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+              ))}
+            </Pie>
+            <Tooltip content={<PieTip />} />
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
+      <ul className="mt-3 grid grid-cols-1 gap-x-5 gap-y-1.5 sm:grid-cols-2">
+        {data.map((d, i) => (
+          <li key={d.name} className="flex items-center gap-2 text-xs">
+            <span className="h-2.5 w-2.5 flex-none rounded-full" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
+            <span className="min-w-0 flex-1 truncate text-foreground">{d.name}</span>
+            <span className="flex-none font-semibold tabular-nums text-muted-foreground">{d.value.toLocaleString()}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function ChartTile({ w }: { w: DashboardWidget }) {
   const { t } = useI18n();
   const empty = !Array.isArray(w.data) || (w.data as unknown[]).length === 0;
   return (
     <Card className="flex h-full flex-col p-4">
       <div className="mb-3 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2">
           <span className="grid h-7 w-7 flex-none place-items-center rounded-md bg-primary/10 text-primary">
             <BarChart3 className="h-4 w-4" />
           </span>
-          <div className="text-sm font-semibold text-foreground">{w.title}</div>
+          <div className="truncate text-sm font-semibold text-foreground">{w.title}</div>
         </div>
-        <span className="truncate text-[11px] text-muted-foreground">{w.source.label}</span>
+        <span className="flex-none text-[11px] text-muted-foreground">{w.source.label}</span>
       </div>
-      {empty ? (
-        <div className="flex h-[220px] items-center justify-center text-sm text-muted-foreground">{t('dash.noData')}</div>
-      ) : w.type === 'bar' ? (
-        <div className="flex min-h-[220px] w-full items-center">
-          <CategoryBars data={(w.data as CategoryWidgetData).map((d) => ({ label: d.name, value: d.value }))} />
-        </div>
-      ) : w.type === 'line' ? (
-        <TrendArea data={(w.data as SeriesWidgetData).map((d) => ({ date: d.date, count: d.value }))} height={220} />
-      ) : (
-        <div className="h-[220px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie data={w.data as CategoryWidgetData} dataKey="value" nameKey="name" innerRadius={50} outerRadius={85} paddingAngle={2} stroke="none">
-                {(w.data as CategoryWidgetData).map((_, i) => (
-                  <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip
-                contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12 }}
-                itemStyle={{ color: 'hsl(var(--foreground))' }}
-              />
-            </PieChart>
-          </ResponsiveContainer>
-          <ul className="-mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-            {(w.data as CategoryWidgetData).map((d, i) => (
-              <li key={d.name} className="flex items-center gap-1">
-                <span className="h-2 w-2 rounded-full" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} /> {d.name} · {d.value}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <div className="flex min-h-[220px] flex-1 flex-col">
+        {empty ? (
+          <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">{t('dash.noData')}</div>
+        ) : w.type === 'bar' ? (
+          <div className="flex flex-1 items-center">
+            <CategoryBars data={(w.data as CategoryWidgetData).map((d) => ({ label: d.name, value: d.value }))} />
+          </div>
+        ) : w.type === 'line' ? (
+          <div className="flex-1">
+            <TrendArea data={(w.data as SeriesWidgetData).map((d) => ({ date: d.date, count: d.value }))} height={240} />
+          </div>
+        ) : (
+          <PieTile data={w.data as CategoryWidgetData} />
+        )}
+      </div>
     </Card>
   );
 }
@@ -114,13 +139,13 @@ function Widget({ w }: { w: DashboardWidget }) {
 export function DashboardsPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { t, locale } = useI18n();
-  const list = useQuery({ queryKey: ['dashboards'], queryFn: () => api.dashboards(), select: (d) => d.items });
+  const { t, locale, language } = useI18n();
+  const list = useQuery({ queryKey: ['dashboards', language], queryFn: () => api.dashboards(language), select: (d) => d.items });
   const [question, setQuestion] = useState('');
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
 
   const create = useMutation({
-    mutationFn: (q: string) => api.createDashboard({ question: q }),
+    mutationFn: (q: string) => api.createDashboard({ question: q, language }),
     onSuccess: (r) => {
       void qc.invalidateQueries({ queryKey: ['dashboards'] });
       navigate(`/dashboards/${r.item.id}`);
@@ -179,7 +204,9 @@ export function DashboardsPage() {
               </span>
               <span className="min-w-0">
                 <span className="block text-sm font-semibold text-foreground">{d.title}</span>
-                <span className="block truncate text-xs text-muted-foreground">{d.question}</span>
+                {d.question && d.question !== d.title ? (
+                  <span className="block truncate text-xs text-muted-foreground">{d.question}</span>
+                ) : null}
               </span>
             </Link>
             <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
@@ -216,8 +243,8 @@ export function DashboardsPage() {
 export function DashboardViewPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const t = useI18n().t;
-  const dash = useQuery({ queryKey: ['dashboards', id], queryFn: () => api.dashboardById(id!), enabled: Boolean(id), select: (d) => d.item });
+  const { t, language } = useI18n();
+  const dash = useQuery({ queryKey: ['dashboards', id, language], queryFn: () => api.dashboardById(id!, language), enabled: Boolean(id), select: (d) => d.item });
 
   return (
     <div>
@@ -240,19 +267,24 @@ export function DashboardViewPage() {
             const charts = dash.data.widgets.filter((w) => w.type !== 'kpi');
             return (
               <div className="flex flex-col gap-4">
-                {/* KPI tiles share one responsive row, so the key numbers line up. */}
+                {/* KPI tiles auto-fit the row so any count packs tightly without
+                    a stranded tile in its own near-empty row. */}
                 {kpis.length > 0 ? (
-                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(13rem,1fr))]">
                     {kpis.map((w) => (
                       <Widget key={w.id} w={w} />
                     ))}
                   </div>
                 ) : null}
-                {/* Charts: two across on wide screens. */}
+                {/* Charts: two across on wide screens. When the count is odd the
+                    last chart spans the full width, so a row is never left half
+                    empty (a lone chart therefore fills the whole width too). */}
                 {charts.length > 0 ? (
                   <div className="grid gap-4 lg:grid-cols-2">
-                    {charts.map((w) => (
-                      <Widget key={w.id} w={w} />
+                    {charts.map((w, i) => (
+                      <div key={w.id} className={cn('h-full', charts.length % 2 === 1 && i === charts.length - 1 && 'lg:col-span-2')}>
+                        <Widget w={w} />
+                      </div>
                     ))}
                   </div>
                 ) : null}

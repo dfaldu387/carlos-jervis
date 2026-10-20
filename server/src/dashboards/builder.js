@@ -4,7 +4,7 @@ import { parseQuestion, toFilter } from '../agent/nlu.js';
 import { aggregateIssues, issueTrend, vehicleImpact } from '../agent/tools/production.js';
 import { downtimeEvents } from '../agent/tools/systems.js';
 import { SOURCE_LABELS } from '../connectors/index.js';
-import { t } from '../agent/i18n.js';
+import { normalizeLanguage, t } from '../agent/i18n.js';
 import { saveDashboard } from './store.js';
 
 /**
@@ -51,6 +51,31 @@ const TITLES = {
     downtime: 'Erfasster Stillstand',
     lastDays: 'die letzten {days} Tage',
   },
+};
+
+/** The TITLES key a widget's query maps to, so a stored widget's title can be
+ *  re-derived in any language from its query alone. */
+const titleKeyForQuery = (query) => {
+  if (!query) return null;
+  switch (query.kind) {
+    case 'aggregate':
+      return { lineId: 'issuesByLine', errorCode: 'issuesByCode', shiftId: 'issuesByShift', modelId: 'issuesByModel', partId: 'issuesByPart' }[query.dimension] ?? null;
+    case 'trend':
+      return 'trend';
+    case 'impact':
+      return { affected: 'vehicles', reworked: 'reworked', removed: 'removed', reworkMinutes: 'reworkMinutes' }[query.metric] ?? null;
+    case 'downtime':
+      return 'downtime';
+    default:
+      return null;
+  }
+};
+
+/** A widget's title in the given language, or null when the query is unknown. */
+export const localizeWidgetTitle = (query, language) => {
+  const key = titleKeyForQuery(query);
+  if (!key) return null;
+  return (TITLES[normalizeLanguage(language)] ?? TITLES.en)[key] ?? null;
 };
 
 const ISSUES_SOURCE = { label: SOURCE_LABELS.databricks, object: 'prod_quality.issue_events' };

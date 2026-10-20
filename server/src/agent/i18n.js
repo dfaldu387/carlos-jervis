@@ -637,6 +637,38 @@ export const tCount = (language, key, count) => t(language, key, { count });
 
 export const hasKey = (key) => key in STRINGS.en;
 
+// Reverse index of plain (non-templated) phrase -> key, per language. Lets a
+// known suggestion phrase (a follow-up, a prompt) be re-expressed in another
+// language. Built once, lazily.
+let phraseIndex = null;
+const buildPhraseIndex = () => {
+  const index = { en: new Map(), de: new Map() };
+  for (const lang of LANGUAGES) {
+    for (const [key, value] of Object.entries(STRINGS[lang] ?? {})) {
+      if (typeof value !== 'string' || value.includes('{') || value.includes('|')) continue;
+      index[lang].set(value.trim().toLowerCase(), key);
+    }
+  }
+  return index;
+};
+
+/**
+ * Re-expresses a known UI phrase (a follow-up suggestion, a prompt) in the
+ * target language by matching it back to its string key. Free-typed text that
+ * matches no key is returned unchanged.
+ * @param {string} text
+ * @param {'en'|'de'} language
+ */
+export const localizePhrase = (text, language) => {
+  const input = String(text ?? '').trim();
+  if (!input) return input;
+  if (!phraseIndex) phraseIndex = buildPhraseIndex();
+  const needle = input.toLowerCase();
+  const key = phraseIndex.en.get(needle) ?? phraseIndex.de.get(needle);
+  if (!key) return input;
+  return t(normalizeLanguage(language), key) || input;
+};
+
 const WEEKDAYS = {
   en: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
   de: ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'],

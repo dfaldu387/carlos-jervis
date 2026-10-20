@@ -15,6 +15,11 @@ interface Turn {
   question: string;
   result?: AskResult;
   failed?: string;
+  // True while this turn is being re-fetched after a language switch.
+  refreshing?: boolean;
+  // Set when the question came from a localised prompt (example/suggestion), so
+  // its bubble follows the UI language instead of staying in the asked language.
+  questionKey?: string;
 }
 
 // Translation keys; the question text is localised too so German users get
@@ -45,15 +50,67 @@ export function AskPage() {
   const { t, language } = useI18n();
   const languageRef = useRef(language);
   languageRef.current = language;
+  const tRef = useRef(t);
+  tRef.current = t;
+  // Latest turns without making the refresh effect depend on them (so its own
+  // setTurns updates don't cancel the in-flight re-fetch).
+  const turnsRef = useRef(turns);
+  turnsRef.current = turns;
+  const prevLanguageRef = useRef(language);
+  const loadedSessionRef = useRef(false);
+
+  // The text to ask the server for a turn: a localised prompt follows the
+  // current language; anything else is sent exactly as it was asked.
+  const questionTextFor = (turn: Turn) => (turn.questionKey ? tRef.current(turn.questionKey) : turn.question);
   useEffect(() => claimAnswers((result) => setTurns((prev) => [...prev, { id: `v-${result.id}`, question: result.question, result }])), [claimAnswers]);
 
-  const ask = useCallback(async (question: string) => {
+  // Answers are rendered from text the server generated in the language that
+  // was active when the question was asked; only the card chrome follows the
+  // live UI language. So when the viewer switches EN/DE we re-ask every answered
+  // turn in the new language and swap the results in place, rethreading a fresh
+  // session so the server-side conversation mirrors what's on screen.
+  useEffect(() => {
+    if (prevLanguageRef.current === language) return;
+    prevLanguageRef.current = language;
+    const toRefresh = turnsRef.current.filter((turn) => turn.result || turn.failed);
+    if (toRefresh.length === 0) return;
+    let cancelled = false;
+    setTurns((prev) => prev.map((turn) => (turn.result || turn.failed ? { ...turn, refreshing: true } : turn)));
+    (async () => {
+      let session: string | undefined;
+      for (const turn of toRefresh) {
+        try {
+          const result = await api.ask(questionTextFor(turn), session, language);
+          session = result.sessionId;
+          if (cancelled) return;
+          // Keyed turns (examples) relabel live via t(); for the rest, follow the
+          // server's localized phrasing of the question (follow-ups, prompts).
+          setTurns((prev) =>
+            prev.map((x) =>
+              x.id === turn.id
+                ? { ...x, result, failed: undefined, refreshing: false, question: x.questionKey ? x.question : result.localizedQuestion ?? x.question }
+                : x,
+            ),
+          );
+        } catch (e) {
+          if (cancelled) return;
+          setTurns((prev) => prev.map((x) => (x.id === turn.id ? { ...x, failed: (e as Error).message, refreshing: false } : x)));
+        }
+      }
+      if (!cancelled) sessionRef.current = session;
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [language]);
+
+  const ask = useCallback(async (question: string, questionKey?: string) => {
     const text = question.trim();
     if (!text) return;
     setBusy(true);
     setDraft('');
     const id = `t-${Date.now()}`;
-    setTurns((prev) => [...prev, { id, question: text }]);
+    setTurns((prev) => [...prev, { id, question: text, questionKey }]);
     try {
       const result = await api.ask(text, sessionRef.current, languageRef.current);
       sessionRef.current = result.sessionId;
@@ -71,6 +128,26 @@ export function AskPage() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, [turns, waiting]);
+
+  // A ?session= param (from Conversation History) loads that transcript into
+  // the panel once and continues it, so follow-ups extend the same session.
+  useEffect(() => {
+    const sid = searchParams.get('session');
+    if (!sid || loadedSessionRef.current) return;
+    loadedSessionRef.current = true;
+    void (async () => {
+      try {
+        const convo = await api.conversation(sid);
+        sessionRef.current = convo.sessionId;
+        setTurns(convo.turns.map((turn, i) => ({ id: `h-${i}`, question: turn.question, result: turn.result })));
+      } catch {
+        /* a stale or foreign session id just opens a fresh panel */
+      } finally {
+        searchParams.delete('session');
+        setSearchParams(searchParams, { replace: true });
+      }
+    })();
+  }, [searchParams, setSearchParams]);
 
   // A ?q= param (from the Command Center) asks that question once on arrival.
   useEffect(() => {
@@ -135,7 +212,7 @@ export function AskPage() {
                   <button
                     key={c.cat}
                     type="button"
-                    onClick={() => ask(t(c.q))}
+                    onClick={() => ask(t(c.q), c.q)}
                     className="flex items-start gap-3 rounded-xl border border-border bg-card p-3.5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
                   >
                     <span className="grid h-9 w-9 flex-none place-items-center rounded-lg bg-primary/10 text-primary">
@@ -152,9 +229,11 @@ export function AskPage() {
           ) : (
             <div className="flex flex-1 flex-col gap-5 pb-4 pt-2">
               {turns.map((turn) => (
-                <div key={turn.id} className="flex flex-col gap-3">
+                <div key={turn.id} className={cn('flex flex-col gap-3', turn.refreshing && 'opacity-50 transition-opacity')}>
                   <div className="flex justify-end">
-                    <div className="max-w-[80%] rounded-2xl rounded-br-md bg-primary px-4 py-2.5 text-sm text-primary-foreground">{turn.question}</div>
+                    <div className="max-w-[80%] rounded-2xl rounded-br-md bg-primary px-4 py-2.5 text-sm text-primary-foreground">
+                      {turn.questionKey ? t(turn.questionKey) : turn.question}
+                    </div>
                   </div>
                   {turn.result ? <AnswerCard result={turn.result} onFollowUp={ask} /> : null}
                   {turn.failed ? (

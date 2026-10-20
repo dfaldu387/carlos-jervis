@@ -60,6 +60,9 @@ export const listDashboards = () =>
 
 export const getDashboard = (id) => load().find((dashboard) => dashboard.id === id) ?? null;
 
+/** The full stored dashboards, newest first (the real objects, for localization). */
+export const getAllDashboards = () => [...load()].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+
 export const saveDashboard = (dashboard) => {
   const rows = load();
   const index = rows.findIndex((entry) => entry.id === dashboard.id);

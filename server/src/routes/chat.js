@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { answerQuestion } from '../agent/orchestrator.js';
 import { appendTurn, ensureSession, getSession } from '../data/conversations.js';
 import { recordQuery } from '../security/audit.js';
-import { normalizeLanguage } from '../agent/i18n.js';
+import { localizePhrase, normalizeLanguage } from '../agent/i18n.js';
 
 export const chatRouter = Router();
 
@@ -41,6 +41,9 @@ chatRouter.post('/', async (req, res, next) => {
     res.json({
       sessionId: session.id,
       ...result,
+      // The asked question re-expressed in the answer's language, when it is a
+      // known suggestion phrase, so a language switch can relabel the bubble.
+      localizedQuestion: localizePhrase(question, result.language),
       access: { role: req.access.role, roleName: req.access.roleName },
     });
   } catch (error) {
